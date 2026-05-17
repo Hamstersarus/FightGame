@@ -4,6 +4,10 @@
 
 A Java turn-based fighting game where monsters, creatures, and chaos agents from opposing teams clash on a 10×10 arena.
 
+## Goals and Purpose
+
+The intent of this project is to demonstrate software development in Java with heavy use of a modern LLM tool. I used Anthropic's Claude Sonnet 4.6 with occasional use of Opus 4.7. The development enviroment I chose is vscode along with Claude CLI. This project serves as the final project in my APCSA Java programming class. The use of these AI tools is in contrast to everything we've done in the course where prior use of LLMs was prohibited.
+
 ## Characters
 
 Each character has five attributes:
