@@ -1,0 +1,60 @@
+public class Character {
+    static final int HEX_DAMAGE  = 5;
+    static final int BURN_DAMAGE = 8;
+
+    String  name;
+    int     hp;
+    int     attackPower;
+    int     shieldHp;
+    int     maxShieldHp;
+    int     shieldRegenTimer;
+    int     shieldRegenDelay;
+    boolean shieldActive;
+    String  symbol;
+    int     row, col;
+    int     hexTurnsRemaining;
+    int     burnTurnsRemaining;
+
+    public Character(String name, int hp, int attackPower, String symbol,
+                     int maxShieldHp, int shieldRegenDelay) {
+        this.name             = name;
+        this.hp               = hp;
+        this.attackPower      = attackPower;
+        this.symbol           = symbol;
+        this.maxShieldHp      = maxShieldHp;
+        this.shieldHp         = maxShieldHp;
+        this.shieldRegenDelay = shieldRegenDelay;
+    }
+
+    // ── Getters ───────────────────────────────────────────────────────────────
+
+    public String  getName()               { return name; }
+    public int     getHp()                 { return hp; }
+    public int     getAttackPower()        { return attackPower; }
+    public int     getShieldHp()           { return shieldHp; }
+    public int     getMaxShieldHp()        { return maxShieldHp; }
+    public int     getShieldRegenTimer()   { return shieldRegenTimer; }
+    public int     getShieldRegenDelay()   { return shieldRegenDelay; }
+    public boolean isShieldActive()        { return shieldActive; }
+    public String  getSymbol()             { return symbol; }
+    public int     getRow()                { return row; }
+    public int     getCol()                { return col; }
+    public int     getHexTurnsRemaining()  { return hexTurnsRemaining; }
+    public int     getBurnTurnsRemaining() { return burnTurnsRemaining; }
+
+    // ── Setters ───────────────────────────────────────────────────────────────
+
+    public void setName(String name)                       { this.name = name; }
+    public void setHp(int hp)                              { this.hp = hp; }
+    public void setAttackPower(int attackPower)            { this.attackPower = attackPower; }
+    public void setShieldHp(int shieldHp)                  { this.shieldHp = shieldHp; }
+    public void setMaxShieldHp(int maxShieldHp)            { this.maxShieldHp = maxShieldHp; }
+    public void setShieldRegenTimer(int shieldRegenTimer)  { this.shieldRegenTimer = shieldRegenTimer; }
+    public void setShieldRegenDelay(int shieldRegenDelay)  { this.shieldRegenDelay = shieldRegenDelay; }
+    public void setShieldActive(boolean shieldActive)      { this.shieldActive = shieldActive; }
+    public void setSymbol(String symbol)                   { this.symbol = symbol; }
+    public void setRow(int row)                            { this.row = row; }
+    public void setCol(int col)                            { this.col = col; }
+    public void setHexTurnsRemaining(int hexTurnsRemaining)   { this.hexTurnsRemaining = hexTurnsRemaining; }
+    public void setBurnTurnsRemaining(int burnTurnsRemaining) { this.burnTurnsRemaining = burnTurnsRemaining; }
+}

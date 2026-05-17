@@ -1,0 +1,349 @@
+================================================================================
+FIGHT — CHARACTER DATABASE
+================================================================================
+Full character reference for a 1v1 game: one player character vs one opponent.
+Each entry covers base stats, special ability, behavior, and implementation
+notes for coding the character into the game.
+================================================================================
+
+
+────────────────────────────────────────────────────────────────────────────────
+GOBLIN  👹
+────────────────────────────────────────────────────────────────────────────────
+HP:           50
+Attack Power: 12
+Symbol:       👹
+
+Description:
+  Goblins are scrappy and get more dangerous as a fight drags on. What they
+  lack in raw power they make up for with relentless aggression — the longer
+  they survive, the harder they hit.
+
+Special Ability — Frenzy:
+  The Goblin's attack power increases by +2 for every turn it survives.
+  Turn 1: 12 damage. Turn 2: 14. Turn 3: 16. And so on, with no cap.
+
+Behavior Notes:
+  - Starts weak; relies on outlasting the opponent long enough for Frenzy
+    to bring its damage up to a threatening level
+  - Fragile — most opponents can finish it in 3-4 hits before Frenzy pays off
+  - Best outcome is a slow opponent (Troll, Zombie, Knight) who can't end
+    the fight before Frenzy scales up
+
+Implementation Notes:
+  - Add `int turnsAlive` field, initialized to 0
+  - Increment `turnsAlive` at the start of each turn
+  - Effective attack = `attackPower + (turnsAlive * 2)`
+  - Apply this modifier before damage is subtracted from target's HP
+
+
+────────────────────────────────────────────────────────────────────────────────
+WITCH  🧙
+────────────────────────────────────────────────────────────────────────────────
+HP:           65
+Attack Power: 25
+Symbol:       🧙
+
+Description:
+  The Witch deals devastating magic damage but cannot take many hits. She is
+  a high-risk, high-reward character who wins fights quickly or not at all.
+
+Special Ability — Hex:
+  Every 3rd attack, the Witch casts a Hex on the opponent. A Hexed opponent
+  loses 5 HP at the start of each of their turns for 3 turns (15 total
+  damage over time).
+
+Behavior Notes:
+  - Glass cannon — wins fast or loses fast
+  - Hex stacks are dangerous: if the opponent is hexed and still alive,
+    the DoT continues to chip away even when the Witch is not attacking
+  - Vulnerable to Ninja (First Strike can end her before she attacks)
+    and Dragon (Inferno burns through her low HP)
+
+Implementation Notes:
+  - Add `int attackCount` field; increment each time `attack()` is called
+  - When `attackCount % 3 == 0`, apply Hex to opponent
+  - Hex requires status fields on `Character`: `int hexTurnsRemaining`,
+    `int hexDamagePerTurn = 5`
+  - Tick Hex damage at the start of the hexed character's turn
+
+
+────────────────────────────────────────────────────────────────────────────────
+VAMPIRE  🧛
+────────────────────────────────────────────────────────────────────────────────
+HP:           90
+Attack Power: 18
+Symbol:       🧛
+
+Description:
+  The Vampire is a durable fighter who heals from every attack, making them
+  harder to kill the longer a fight goes on. Best in prolonged 1v1 battles.
+
+Special Ability — Bat Form:
+  Every 5th turn, the Vampire transforms into a bat for 1 turn. While in
+  bat form it is completely immune to the opponent's attack (0 damage) and
+  skips its own attack that turn. It reverts to Vampire form automatically
+  the following turn.
+
+Behavior Notes:
+  - Bat Form triggers on turns 5, 10, 15, 20... making the Vampire's
+    survival rhythm predictable but reliable — the opponent effectively
+    loses one attack every 5 turns
+  - Most valuable against opponents who deal high damage per hit (Dragon,
+    Ninja, Witch) where absorbing a single incoming hit can be the
+    difference between surviving and dying
+  - Less impactful against low-attack opponents (Goblin, Troll, Zombie)
+    where the damage avoided is small relative to the attack also skipped
+  - Countered by DoT effects (Hex, Burn) which tick between turns and
+    are not blocked by Bat Form immunity
+
+Implementation Notes:
+  - Add `int turnCount` field; increment at the start of each turn
+  - When `turnCount % 5 == 0`, set `boolean inBatForm = true`
+  - During damage resolution: if `inBatForm`, set incoming damage to 0
+    and skip the Vampire's attack for that turn
+  - Set `inBatForm = false` at the end of the bat-form turn
+  - Print a message on transformation:
+    "🧛 transforms into a bat! 🦇 The attack passes right through!"
+
+
+────────────────────────────────────────────────────────────────────────────────
+NINJA  🥷
+────────────────────────────────────────────────────────────────────────────────
+HP:           55
+Attack Power: 30
+Symbol:       🥷
+
+Description:
+  The Ninja has the highest attack power in the game but the second-lowest
+  HP. Built to eliminate the opponent before they can fight back.
+
+Special Ability — First Strike:
+  The Ninja always attacks before the opponent when a turn begins, regardless
+  of normal turn order. If the opponent is defeated by First Strike, the
+  opponent does not get to retaliate that turn.
+
+Behavior Notes:
+  - Most effective against high-HP opponents who can be severely weakened
+    or one-shot before they retaliate
+  - Extremely fragile — will fall quickly to anyone who survives the
+    first hit
+  - Countered by Dragon and Troll, who have enough HP to absorb the
+    opening strike and hit back hard
+
+Implementation Notes:
+  - Before normal turn resolution, check if the player or opponent is a Ninja
+  - If so, the Ninja's `attack()` resolves first
+  - Call `isAlive()` on the target before allowing the opponent to retaliate
+
+
+────────────────────────────────────────────────────────────────────────────────
+KNIGHT  💂‍♀️
+────────────────────────────────────────────────────────────────────────────────
+HP:           120
+Attack Power: 15
+Symbol:       💂‍♀️
+
+Description:
+  The Knight is a disciplined fighter who uses their shield to absorb
+  punishment. High HP and reliable damage, with a defensive ability that
+  makes burst damage less effective against them.
+
+Special Ability — Parry:
+  Every 3rd incoming attack is fully blocked — the Knight takes 0 damage
+  from that hit. The counter resets after each successful parry.
+
+Behavior Notes:
+  - Strong against opponents who rely on consistent damage output
+    (Vampire, Goblin, Troll, Zombie) where the free blocked hit
+    compounds over a long fight
+  - Less effective against opponents with burst or DoT abilities
+    (Dragon's Inferno, Witch's Hex) since Parry only negates direct hits
+  - A patient, reliable pick — rarely dominant but rarely loses badly
+
+Implementation Notes:
+  - Add `int incomingAttackCount` field; increment each time the Knight
+    is targeted by an attack
+  - When `incomingAttackCount % 3 == 0`, set incoming damage to 0
+    for that hit
+  - Apply the check before subtracting damage from `hp`
+
+
+────────────────────────────────────────────────────────────────────────────────
+DRAGON  🐉
+────────────────────────────────────────────────────────────────────────────────
+HP:           150
+Attack Power: 35
+Symbol:       🐉
+
+Description:
+  The Dragon is the most powerful character in the game. Near-impossible to
+  take down quickly and capable of eliminating most opponents in 2-3 hits.
+
+Special Ability — Inferno:
+  Every 4th attack, the Dragon breathes fire, dealing 2× attack power
+  (70 damage) and applying Burn to the opponent: 8 HP lost per turn
+  for 3 turns.
+
+Special Ability — Fire Shot 🔥:
+  The Dragon can choose to shoot a bolt of fire at the opponent from
+  anywhere on the board. Deals 30 damage and ignores distance entirely —
+  the Dragon can fire from across the map. Has a 3-turn cooldown after
+  each use.
+
+Behavior Notes:
+  - Wins nearly every 1v1 matchup on stats alone
+  - Burn from Inferno can finish off low-HP opponents (Goblin, Witch,
+    Ninja) without needing a direct killing blow
+  - Fire Shot gives the Dragon a reliable ranged option — useful when
+    the opponent is retreating or hasn't closed the distance yet
+  - Fire Shot + Inferno on back-to-back turns is the Dragon's most
+    devastating combo: 30 damage then 70 + Burn in quick succession
+  - The only realistic counters are Alien (Cattle Drop burst) and
+    Zombie (Undying forces an extra round)
+
+Implementation Notes:
+  - Inferno: add `int attackCount` field; trigger when `attackCount % 4 == 0`
+  - Inferno damage = `attackPower * 2` (70)
+  - Burn requires status fields on `Character`: `int burnTurnsRemaining`,
+    `int burnDamagePerTurn = 8`; apply at start of burned character's turn
+  - Fire Shot: add `int fireShotCooldown` field, initialized to 0
+  - Fire Shot appears as a choosable action in the combat menu only when
+    `fireShotCooldown == 0`
+  - On use: deal 30 damage, set `fireShotCooldown = 3`
+  - Decrement `fireShotCooldown` by 1 at the end of each turn if > 0
+
+
+────────────────────────────────────────────────────────────────────────────────
+ZOMBIE  🧟
+────────────────────────────────────────────────────────────────────────────────
+HP:           100
+Attack Power: 10
+Symbol:       🧟
+
+Description:
+  The Zombie refuses to die. Its attack is the weakest in the game, but a
+  second-chance mechanic means finishing it off requires two kill shots
+  instead of one.
+
+Special Ability — Undying:
+  The first time the Zombie would be reduced to 0 HP or below, it instead
+  survives with 1 HP. This can only trigger once per battle.
+
+Behavior Notes:
+  - Forces every opponent to land one extra killing blow, buying an
+    additional turn to deal damage
+  - Poor performance against DoT effects (Hex, Burn) because Undying
+    does not protect against damage-over-time ticks — a hexed or
+    burning Zombie can die between turns without Undying triggering
+  - Wins only through sheer endurance; does not have a realistic path
+    to victory against Dragon or Ninja
+
+Implementation Notes:
+  - Add `boolean hasUndying = true` field
+  - In the damage resolution step: if `hp` would go `<= 0` and
+    `hasUndying` is true, set `hp = 1` and `hasUndying = false`
+  - Print a revival message when Undying triggers
+  - DoT ticks are applied separately and bypass this check
+
+
+────────────────────────────────────────────────────────────────────────────────
+ALIEN  👽
+────────────────────────────────────────────────────────────────────────────────
+HP:           70
+Attack Power: 20
+Symbol:       👽
+
+Description:
+  The Alien's behavior is erratic and hard to plan against. Balanced stats
+  make it a reliable pick, but its special ability introduces a dramatic
+  swing that can reverse a losing fight in an instant.
+
+Special Ability — Cattle Drop:
+  Every 4th attack, the Alien forgoes its normal strike and summons a UFO
+  that drops 3 cows on the opponent. Each cow deals 15 damage for a total
+  of 45 damage — more than double the Alien's normal attack.
+
+Behavior Notes:
+  - Cattle Drop hits harder than any standard attack in the game except
+    Dragon's Inferno, making it a reliable burst window every 4 turns
+  - The 3 turns between Cattle Drops are spent chipping away at 20 damage
+    each; the rhythm is: 20 / 20 / 20 / 45 / 20 / 20 / 20 / 45...
+  - Strong against high-HP opponents (Dragon, Troll, Knight) where the
+    burst damage matters; less impactful against already-fragile opponents
+    who may be finished before the 4th turn arrives
+  - Countered by Ninja (First Strike can eliminate the Alien before the
+    first Cattle Drop triggers on turn 4)
+
+Implementation Notes:
+  - Add `int attackCount` field; increment each time the Alien attacks
+  - When `attackCount % 4 == 0`, skip normal damage and apply 45 directly
+    to `target.hp`
+  - Print a flavored message on Cattle Drop:
+    "👽 summons a UFO! 🛸 Three cows 🐄🐄🐄 rain down on <target>! (45 damage)"
+
+
+────────────────────────────────────────────────────────────────────────────────
+TROLL  🧌
+────────────────────────────────────────────────────────────────────────────────
+HP:           130
+Attack Power: 12
+Symbol:       🧌
+
+Description:
+  The Troll is the hardest character to kill through sustained damage alone.
+  Its attack output is low, but it regenerates health every turn, making it
+  nearly impossible to whittle down.
+
+Special Ability — Regeneration:
+  At the end of every turn, the Troll heals 8 HP (up to its max HP).
+
+Behavior Notes:
+  - Wins any endurance fight where incoming damage per turn is close to
+    or less than 8 HP — Regeneration effectively nullifies weak attackers
+  - Countered by high-burst opponents (Dragon, Ninja) who can deal damage
+    faster than Regeneration can offset
+  - DoT effects (Hex, Burn) tick after Regeneration, making them
+    efficient tools for bypassing the healing
+
+Implementation Notes:
+  - Store `int maxHp` as a field, set at construction time
+  - At the end of each turn (after both attacks resolve), add 8 to the
+    Troll's `hp`, then cap at `maxHp`
+
+
+────────────────────────────────────────────────────────────────────────────────
+COMPUTER VIRUS  👾
+────────────────────────────────────────────────────────────────────────────────
+HP:           60
+Attack Power: 28
+Symbol:       👾
+
+Description:
+  The Computer Virus corrupts the opponent with escalating damage, dealing
+  more harm every consecutive attack. Fragile but terrifying if the fight
+  goes on for more than a few turns.
+
+Special Ability — Corrupt:
+  Each consecutive attack on the opponent adds +4 to the damage dealt
+  (stacks indefinitely, no reset since there is only one opponent).
+  Attack 1: 28 dmg. Attack 2: 32. Attack 3: 36. Attack 4: 40. And so on.
+
+Behavior Notes:
+  - Starts below average in damage but overtakes most opponents by turn 4-5
+  - Fragile — needs to survive long enough for Corrupt to ramp up
+  - Devastating against high-HP opponents (Dragon, Troll) when allowed to
+    stack: by turn 6-7 it is dealing 52-56 damage per hit
+  - Countered by Ninja (First Strike can end it before stacks build) and
+    Dragon (raw HP and Inferno outpace early Corrupt stacks)
+
+Implementation Notes:
+  - Add `int corruptStacks` field, initialized to 0
+  - Before calculating damage: increment `corruptStacks` each attack
+  - Final damage = `attackPower + (corruptStacks * 4)`
+  - No target-switching logic needed — there is only one opponent
+
+
+================================================================================
+END OF DATABASE
+================================================================================
