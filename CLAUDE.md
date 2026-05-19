@@ -44,6 +44,19 @@ Both the player and the opponent have a shield 🛡️. Raising it is an active 
 - Once broken, the shield cannot be raised again until `shieldRegenTimer` reaches 0
 - Regen timer length is a per-character value (e.g. 3–5 turns)
 
+**Shield placement on the board:**
+When a character raises their shield, the 🛡️ emoji is placed as a physical object on the board in the cell directly in front of them:
+- **Player** — shield goes in the cell to the right (col + 1)
+- **Opponent** — shield goes in the cell to the left (col - 1)
+
+Before placing the shield, check whether that cell is free:
+- **Cell is free** — place the shield on the board and set `shieldActive = true` as normal
+- **Cell is occupied** — print a message like `"Something is in the way — can't raise your shield here."` and do NOT end the turn; the player returns to the action menu and can choose a different action or move away to free up the space
+
+When the shield breaks or its timer expires, remove the 🛡️ emoji from the board (`board.removeCharacter` on the shield's cell). The shield cell must be tracked separately from the character's own row/col — add `int shieldRow, shieldCol` fields or a dedicated `boolean shieldOnBoard` flag alongside the existing shield HP fields.
+
+The shield occupies a real cell, so neither character can move into it while it is up.
+
 ### Outside of Combat — Free Roam
 When the player has not yet chosen an action (i.e. between turns or before combat begins), they can move their character around the board and interact with the environment.
 
@@ -72,18 +85,25 @@ When the player has not yet chosen an action (i.e. between turns or before comba
 
 ### Per-Character Ability Specs
 
-| Character | Ability Name | Effect | Cooldown |
-|---|---|---|---|
-| Goblin 👹 | Frenzy | This attack deals 2× attack power (24 damage) | 3 turns |
-| Witch 🧙 | Hex | Curses the opponent — 5 HP/turn for 3 turns | 4 turns |
-| Vampire 🧛 | Bat Form | Become fully immune to damage for 1 turn | 5 turns |
-| Ninja 🥷 | First Strike | Attack the opponent before they can act this turn | 3 turns |
-| Knight 💂 | Parry | Block the next incoming attack completely (sets a flag) | 4 turns |
-| Dragon 🐉 | Fire Shot 🔥 | Deal 30 damage from anywhere (already implemented) | 3 turns |
-| Zombie 🧟 | Undying | Re-arm: the next hit that would kill you leaves you at 1 HP instead | 5 turns |
-| Alien 👽 | Cattle Drop | Summon UFO — 3 cows deal 45 total damage 🛸🐄🐄🐄 | 4 turns |
-| Troll 🧌 | Regenerate | Instantly heal 24 HP (capped at maxHp) | 5 turns |
-| Computer Virus 👾 | Corrupt | Deal attack power + 20 bonus corrupted damage | 4 turns |
+| Character | Ability Name | Effect | Cooldown | Ability Emoji |
+|---|---|---|---|---|
+| Goblin 👹 | Frenzy | This attack deals 2× attack power (24 damage) | 3 turns | *(none — rage effect only, no projectile)* |
+| Witch 🧙 | Hex | Curses the opponent — 5 HP/turn for 3 turns | 4 turns | 🌀 |
+| Vampire 🧛 | Bat Form | Become fully immune to damage for 1 turn | 5 turns | 🩸 |
+| Ninja 🥷 | First Strike | Attack the opponent before they can act this turn | 3 turns | 🥷 |
+| Knight 💂 | Parry | Block the next incoming attack completely (sets a flag) | 4 turns | ⚔️ |
+| Dragon 🐉 | Fire Shot 🔥 | Deal 30 damage from anywhere (already implemented) | 3 turns | 🔥 |
+| Zombie 🧟 | Undying | Re-arm: the next hit that would kill you leaves you at 1 HP instead | 5 turns | 🧠 |
+| Alien 👽 | Cattle Drop | Summon UFO — 3 cows deal 45 total damage 🛸🐄🐄🐄 | 4 turns | 🛸 |
+| Troll 🧌 | Regenerate | Instantly heal 24 HP (capped at maxHp) | 5 turns | 🍃 |
+| Computer Virus 👾 | Corrupt | Deal attack power + 20 bonus corrupted damage | 4 turns | 💾 |
+
+### Attack Animations
+- **Basic attack** — all characters use the same generic `•` bullet projectile
+- **Special ability** — each character has a unique emoji that animates across the screen before the ability resolves; Goblin is the only exception (Frenzy has no projectile, just the printed rage message)
+- Player ability animations run at 80 ms/frame; opponent animations run at 250 ms/frame
+- `isOffensiveAbility()` controls whether the animation plays at all — returns `true` for all characters except Goblin
+- `abilityProjectile()` returns the emoji string for the animation — sourced from `abilityProjectile()` in `Opponent.java`
 
 ### Implementation Plan
 

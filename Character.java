@@ -12,6 +12,9 @@ public class Character {
     boolean shieldActive;
     String  symbol;
     int     row, col;
+    int     shieldRow = -1;   // board row of placed shield; -1 = not on board
+    int     shieldCol = -1;   // board col of placed shield; -1 = not on board
+    boolean shieldOnBoard;    // true when the shield emoji occupies a cell
     int     hexTurnsRemaining;
     int     burnTurnsRemaining;
 

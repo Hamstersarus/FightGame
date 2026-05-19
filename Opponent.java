@@ -5,6 +5,7 @@ public class Opponent extends Character {
     boolean inBatForm;        // Vampire — set true by useAbility, cleared by tickEndOfTurn
     boolean parryReady;       // Knight  — set true by useAbility, cleared by applyDamage
     boolean hasUndying;       // Zombie  — set true by useAbility, cleared on trigger
+    Board   boardRef;         // set when shield is placed; used to remove it on break
 
     public Opponent(String name, int hp, int attackPower, String symbol,
                     int maxShieldHp, int shieldRegenDelay) {
@@ -39,6 +40,7 @@ public class Opponent extends Character {
                 if (shieldHp == 0) {
                     shieldActive = false;
                     shieldRegenTimer = shieldRegenDelay;
+                    removeShieldFromBoard();
                     System.out.println("  💥 " + name + "'s shield is broken! Regenerates in "
                             + shieldRegenTimer + " turns.");
                 }
@@ -49,6 +51,7 @@ public class Opponent extends Character {
                 shieldHp = 0;
                 shieldActive = false;
                 shieldRegenTimer = shieldRegenDelay;
+                removeShieldFromBoard();
             }
         }
 
@@ -81,8 +84,9 @@ public class Opponent extends Character {
 
     boolean isOffensiveAbility() {
         return switch (name) {
-            case "Goblin", "Witch", "Ninja", "Dragon", "Alien", "Computer Virus" -> true;
-            default -> false;
+            case "Witch", "Ninja", "Dragon", "Alien", "Computer Virus",
+                 "Vampire", "Knight", "Zombie", "Troll" -> true;
+            default -> false;  // Goblin's Frenzy has no projectile — just the rage effect
         };
     }
 
@@ -93,7 +97,11 @@ public class Opponent extends Character {
             case "Alien"          -> "🛸";
             case "Witch"          -> "🌀";
             case "Computer Virus" -> "💾";
-            default               -> "⚡";
+            case "Vampire"        -> "🩸";
+            case "Knight"         -> "⚔️";
+            case "Zombie"         -> "🧠";
+            case "Troll"          -> "🍃";
+            default               -> "•";
         };
     }
 
@@ -187,14 +195,43 @@ public class Opponent extends Character {
 
     // ── Shield ────────────────────────────────────────────────────────────────
 
-    void raiseShield() {
+    // Returns true if the shield was placed successfully, false if the cell was blocked.
+    boolean raiseShield(Board board, int colOffset) {
         assert !shieldActive         : "shield must not already be active";
         assert shieldHp > 0          : "shield must have HP to raise";
         assert shieldRegenTimer == 0 : "shield must be off cooldown";
+
+        int sr = row;
+        int sc = col + colOffset;
+
+        if (sc < 0 || sc >= Board.SIZE) {
+            System.out.println("  No room — at the edge of the board, can't raise shield here.");
+            return false;
+        }
+        if (!board.grid[sr][sc].equals(".")) {
+            System.out.println("  Something is in the way — can't raise your shield here.");
+            return false;
+        }
+
+        board.grid[sr][sc] = "🛡️";
+        shieldRow = sr;
+        shieldCol = sc;
+        shieldOnBoard = true;
+        boardRef = board;
         shieldActive = true;
         System.out.println("  🛡️  " + name + " raises their shield! ("
                 + shieldHp + "/" + maxShieldHp + " shield HP)");
         assert shieldActive : "shield must be active after raising";
+        return true;
+    }
+
+    void removeShieldFromBoard() {
+        if (shieldOnBoard && boardRef != null) {
+            boardRef.removeCharacter(shieldRow, shieldCol);
+            shieldOnBoard = false;
+            shieldRow = -1;
+            shieldCol = -1;
+        }
     }
 
     // ── Per-turn ticks ────────────────────────────────────────────────────────
