@@ -116,8 +116,14 @@ java Fight
 
 ```
 Fight/
-├── Fight.java       # Entry point
-├── Character.java   # Character model
-├── Board.java       # 10x10 arena grid
+├── Fight.java            # Entry point and game loop
+│   ├── selectCharacters  # Title screen, roster display, character selection
+│   ├── doPlayerTurn      # Action menu, input dispatch, combat-action loop
+│   ├── handleMove        # Direction input, bounds checking, board update
+│   ├── opponentAI        # Opponent decision logic and movement
+│   └── main              # Board setup, turn loop, game over
+├── Opponent.java         # All combat behavior and special abilities
+├── Character.java        # Base character data model
+├── Board.java            # 10×10 arena grid
 └── README.md
 ```

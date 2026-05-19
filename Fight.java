@@ -13,6 +13,35 @@ public class Fight {
     static final int[]    SHIELD  = {  15,   15,   20,   10,   40,   35,   25,   20,   30,   15 };
     static final int[]    REGEN   = {   3,    4,    4,    3,    3,    5,    4,    4,    5,    3  };
 
+    static final int[]    POWER   = { 101, 175, 174, 195, 195, 295, 150, 170, 201, 179 };
+    //                              Gob  Wit  Vam  Nin  Kni  Dra  Zom  Ali  Tro   CV
+
+    static final String[] FLAVOR  = {
+        "Scrappy brawler that gets more dangerous every turn it stays alive.",
+        "Glass cannon mage — devastating attack but paper-thin HP.",
+        "Durable fighter that turns into a bat every 5th turn, becoming fully immune.",
+        "Extreme glass cannon with the highest attack in the game.",
+        "Disciplined tank with high HP and a damage-blocking Parry.",
+        "The most powerful character — near-impossible to kill, hits like a freight train.",
+        "Refuses to die — the first killing blow is always survived with 1 HP.",
+        "Unpredictable fighter whose every 4th attack drops 45 damage from a UFO.",
+        "Nearly unkillable wall that heals 8 HP every single turn.",
+        "Corrupting attacker whose damage escalates with every consecutive hit."
+    };
+
+    static final String[] SPECIAL = {
+        "Frenzy: +2 ATK per turn survived (no cap)",
+        "Hex: every 3rd attack — 5 HP/turn DoT on target for 3 turns",
+        "Bat Form: fully immune every 5th turn (skips own attack)",
+        "First Strike: attacks before the opponent at the start of every turn",
+        "Parry: every 3rd incoming attack is completely blocked",
+        "Inferno: every 4th attack deals 70 dmg + Burn  |  Fire Shot 🔥: 30 dmg (3-turn cooldown)",
+        "Undying: survives the first killing blow with 1 HP (once per battle)",
+        "Cattle Drop: every 4th attack — UFO 🛸 drops 3 cows 🐄🐄🐄 for 45 damage",
+        "Regeneration: heals 8 HP at the end of every turn",
+        "Corrupt: each attack deals +4 more damage than the last (stacks forever)"
+    };
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     // Reads a line from the user, trims whitespace, and uppercases it so that
@@ -40,6 +69,23 @@ public class Fight {
         if (ch.shieldRegenTimer > 0)
             return "🛡️  BROKEN — regen in " + ch.shieldRegenTimer + " turn(s)";
         return "🛡️  ready (" + ch.shieldHp + "/" + ch.maxShieldHp + ")";
+    }
+
+    static void shootAnimation(String projectile, int delayMs) {
+        int steps = 8;
+        int width = 36;
+        try {
+            for (int i = 0; i <= steps; i++) {
+                int pos = (i * width) / steps;
+                String line = "  " + " ".repeat(pos) + projectile;
+                System.out.print("\r" + line + " ".repeat(Math.max(0, width - pos)));
+                System.out.flush();
+                Thread.sleep(delayMs);
+            }
+            System.out.print("\r" + " ".repeat(width + 4) + "\r");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     static void moveOpponentToward(Opponent opponent, Opponent player, Board board) {
@@ -72,31 +118,40 @@ public class Fight {
                 && opponent.shieldRegenTimer == 0;
         if (canShield && opponent.hp < (int)(opponent.maxHp * 0.45)) {
             opponent.raiseShield();
-            return;  // defensive — stay put while shielding
+            return;
         }
 
-        if (opponent.canUseFireShot() && rng.nextBoolean()) {
-            opponent.fireShot(player);
+        // Vampire Bat Form is useless for the opponent (player already acted)
+        boolean willUseAbility = opponent.canUseAbility()
+                && !opponent.name.equals("Vampire")
+                && rng.nextBoolean();
+
+        if (willUseAbility) {
+            if (opponent.isOffensiveAbility())
+                shootAnimation(opponent.abilityProjectile(), 250);
+            opponent.useAbility(player);
         } else {
+            shootAnimation("•", 250);
             opponent.attack(player);
         }
 
         moveOpponentToward(opponent, player, board);
     }
 
-    // ── Entry point ───────────────────────────────────────────────────────────
+    // ── Extracted helpers ─────────────────────────────────────────────────────
 
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        Random  rng     = new Random();
-
+    static Opponent[] selectCharacters(Scanner scanner, Random rng) {
         System.out.println("╔══════════════════════════════╗");
         System.out.println("║           F I G H T          ║");
         System.out.println("╚══════════════════════════════╝\n");
         System.out.println("Choose your character:\n");
-        for (int i = 0; i < NAMES.length; i++)
-            System.out.printf("  %2d. %s  %-16s  HP:%-4d  ATK:%d%n",
-                    i + 1, SYMBOLS[i], NAMES[i], HP[i], ATTACK[i]);
+        for (int i = 0; i < NAMES.length; i++) {
+            System.out.printf("  %2d. %s  %-16s  HP:%-4d  ATK:%-4d  PWR:%d%n",
+                    i + 1, SYMBOLS[i], NAMES[i], HP[i], ATTACK[i], POWER[i]);
+            System.out.println("      " + FLAVOR[i]);
+            System.out.println("      ✦ " + SPECIAL[i]);
+            System.out.println();
+        }
 
         int choice = 0;
         System.out.print("\nEnter number (1-10): ");
@@ -109,12 +164,140 @@ public class Fight {
         int playerIdx = choice - 1;
         Opponent player = createCharacter(playerIdx);
 
+        // Matchmaking — prefer opponents within ±35% of the player's power score
+        int playerPower = POWER[playerIdx];
+        int tolerance   = (int)(playerPower * 0.35);
+
+        java.util.List<Integer> candidates = new java.util.ArrayList<>();
+        for (int i = 0; i < NAMES.length; i++) {
+            if (i != playerIdx && Math.abs(POWER[i] - playerPower) <= tolerance)
+                candidates.add(i);
+        }
+
         int oppIdx;
-        do { oppIdx = rng.nextInt(NAMES.length); } while (oppIdx == playerIdx);
+        if (!candidates.isEmpty()) {
+            oppIdx = candidates.get(rng.nextInt(candidates.size()));
+        } else {
+            // Fallback — closest power score outside the window
+            oppIdx = -1;
+            int bestDiff = Integer.MAX_VALUE;
+            for (int i = 0; i < NAMES.length; i++) {
+                if (i == playerIdx) continue;
+                int diff = Math.abs(POWER[i] - playerPower);
+                if (diff < bestDiff) { bestDiff = diff; oppIdx = i; }
+            }
+        }
+
         Opponent opponent = createCharacter(oppIdx);
 
-        System.out.println("\nYou chose:     " + player.symbol   + "  " + player.name);
-        System.out.println("Your opponent: " + opponent.symbol + "  " + opponent.name);
+        System.out.println("\nYou chose:     " + player.symbol + "  " + player.name
+                + "  (PWR:" + playerPower + ")");
+        System.out.println("Your opponent: " + opponent.symbol + "  " + opponent.name
+                + "  (PWR:" + POWER[oppIdx] + ")");
+
+        return new Opponent[] { player, opponent };
+    }
+
+    static void handleMove(Scanner scanner, String rawChoice, Opponent player, Opponent opponent, Board board) {
+        String dir;
+        if (rawChoice.equals("W") || rawChoice.equals("A")
+                || rawChoice.equals("S") || rawChoice.equals("D")) {
+            dir = rawChoice;
+        } else {
+            System.out.print("  Direction: ");
+            dir = readInput(scanner);
+        }
+        int nr = player.row, nc = player.col;
+        boolean validDir = true;
+        switch (dir) {
+            case "W" -> nr--;
+            case "S" -> nr++;
+            case "A" -> nc--;
+            case "D" -> nc++;
+            default  -> validDir = false;
+        }
+        if (!validDir) {
+            System.out.println("  Unknown direction — staying put.");
+        } else if (nr < 0 || nr >= Board.SIZE || nc < 0 || nc >= Board.SIZE) {
+            System.out.println("  Edge of board — can't move that way.");
+        } else if (nr == opponent.row && nc == opponent.col) {
+            System.out.println("  Opponent is there — can't move into them.");
+        } else {
+            player.move(nr, nc, board);
+            System.out.println("  Moved to (" + nr + ", " + nc + ").");
+        }
+        board.display();
+    }
+
+    // Returns true if the player used Ninja First Strike (opponent skips their turn).
+    static boolean doPlayerTurn(Scanner scanner, Opponent player, Opponent opponent, Board board) {
+        boolean combatActionTaken = false;
+        while (!combatActionTaken) {
+            printStats(player, opponent);
+
+            System.out.println("  Your turn! Choose an action:");
+            System.out.println("    1. Basic Attack");
+            int nextOpt = 2;
+            int abilityOpt = 0, shieldOpt = 0;
+
+            if (player.canUseAbility()) {
+                abilityOpt = nextOpt++;
+                System.out.println("    " + abilityOpt + ". " + player.abilityMenuText());
+            }
+            boolean canShield = !player.shieldActive
+                    && player.shieldHp > 0
+                    && player.shieldRegenTimer == 0;
+            if (canShield) {
+                shieldOpt = nextOpt++;
+                System.out.println("    " + shieldOpt + ". Raise Shield 🛡️  ("
+                        + player.shieldHp + "/" + player.maxShieldHp + " HP)");
+            }
+            int moveOpt = nextOpt;
+            System.out.println("    " + moveOpt + ". Move  (W=up  S=down  A=left  D=right)");
+
+            int playerChoice = 0;
+            String rawChoice = "";
+            while (playerChoice < 1 || playerChoice > moveOpt) {
+                System.out.print("  Choice: ");
+                rawChoice = readInput(scanner);
+                if (rawChoice.equals("W") || rawChoice.equals("A")
+                        || rawChoice.equals("S") || rawChoice.equals("D")) {
+                    playerChoice = moveOpt;
+                    break;
+                }
+                try { playerChoice = Integer.parseInt(rawChoice); }
+                catch (NumberFormatException e) { }
+            }
+
+            if (playerChoice == 1) {
+                shootAnimation("•", 80);
+                player.attack(opponent);
+                combatActionTaken = true;
+            } else if (abilityOpt > 0 && playerChoice == abilityOpt) {
+                if (player.isOffensiveAbility())
+                    shootAnimation(player.abilityProjectile(), 80);
+                player.useAbility(opponent);
+                combatActionTaken = true;
+                if (player.name.equals("Ninja")) return true;  // skip opponent's turn
+            } else if (shieldOpt > 0 && playerChoice == shieldOpt) {
+                player.raiseShield();
+                combatActionTaken = true;
+            } else {
+                handleMove(scanner, rawChoice, player, opponent, board);
+            }
+        }
+        return false;
+    }
+
+    // ── Entry point ───────────────────────────────────────────────────────────
+
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        Random  rng     = new Random();
+
+        Opponent[] chars   = selectCharacters(scanner, rng);
+        Opponent   player   = chars[0];
+        Opponent   opponent = chars[1];
 
         Board board = new Board();
         player.row = 0;   player.col = 0;
@@ -135,105 +318,25 @@ public class Fight {
             opponent.tickStartOfTurn();
             if (!opponent.isAlive()) break;
 
-            boolean opponentIsNinja = opponent.name.equals("Ninja");
-            if (opponentIsNinja) {
+            // Ninja First Strike — opponent attacks before player's menu (cooldown-gated)
+            boolean opponentUsedFirstStrike = false;
+            if (opponent.name.equals("Ninja") && opponent.canUseAbility()) {
                 System.out.println("  🥷 FIRST STRIKE! " + opponent.name
                         + " moves faster than the eye can see!");
-                opponent.attack(player);
+                shootAnimation("🥷", 250);
+                opponent.useAbility(player);
+                opponentUsedFirstStrike = true;
                 if (!player.isAlive()) break;
             }
 
-            if (player.inBatForm) {
-                printStats(player, opponent);
-                System.out.println("  🦇 You are in bat form this turn — immune but cannot act.");
-            } else {
-                boolean combatActionTaken = false;
-                while (!combatActionTaken) {
-                    printStats(player, opponent);
-
-                    System.out.println("  Your turn! Choose an action:");
-                    System.out.println("    1. Basic Attack");
-                    int nextOpt = 2;
-                    int fireShotOpt = 0, shieldOpt = 0;
-
-                    if (player.canUseFireShot()) {
-                        fireShotOpt = nextOpt++;
-                        System.out.println("    " + fireShotOpt + ". Fire Shot 🔥  (deals 30, 3-turn cooldown)");
-                    }
-                    boolean canShield = !player.shieldActive
-                            && player.shieldHp > 0
-                            && player.shieldRegenTimer == 0;
-                    if (canShield) {
-                        shieldOpt = nextOpt++;
-                        System.out.println("    " + shieldOpt + ". Raise Shield 🛡️  ("
-                                + player.shieldHp + "/" + player.maxShieldHp + " HP)");
-                    }
-                    int moveOpt = nextOpt;
-                    System.out.println("    " + moveOpt + ". Move  (W=up  S=down  A=left  D=right)");
-
-                    int playerChoice = 0;
-                    String rawChoice = "";
-                    while (playerChoice < 1 || playerChoice > moveOpt) {
-                        System.out.print("  Choice: ");
-                        rawChoice = readInput(scanner);
-                        if (rawChoice.equals("W") || rawChoice.equals("A")
-                                || rawChoice.equals("S") || rawChoice.equals("D")) {
-                            playerChoice = moveOpt;
-                            break;
-                        }
-                        try { playerChoice = Integer.parseInt(rawChoice); }
-                        catch (NumberFormatException e) { }
-                    }
-
-                    if (playerChoice == 1) {
-                        player.attack(opponent);
-                        combatActionTaken = true;
-                    } else if (fireShotOpt > 0 && playerChoice == fireShotOpt) {
-                        player.fireShot(opponent);
-                        combatActionTaken = true;
-                    } else if (shieldOpt > 0 && playerChoice == shieldOpt) {
-                        player.raiseShield();
-                        combatActionTaken = true;
-                    } else {
-                        // Movement — opponent does not act; loop back for another action
-                        String dir;
-                        if (rawChoice.equals("W") || rawChoice.equals("A")
-                                || rawChoice.equals("S") || rawChoice.equals("D")) {
-                            dir = rawChoice;
-                        } else {
-                            System.out.print("  Direction: ");
-                            dir = readInput(scanner);
-                        }
-                        int nr = player.row, nc = player.col;
-                        boolean validDir = true;
-                        switch (dir) {
-                            case "W" -> nr--;
-                            case "S" -> nr++;
-                            case "A" -> nc--;
-                            case "D" -> nc++;
-                            default  -> validDir = false;
-                        }
-                        if (!validDir) {
-                            System.out.println("  Unknown direction — staying put.");
-                        } else if (nr < 0 || nr >= Board.SIZE || nc < 0 || nc >= Board.SIZE) {
-                            System.out.println("  Edge of board — can't move that way.");
-                        } else if (nr == opponent.row && nc == opponent.col) {
-                            System.out.println("  Opponent is there — can't move into them.");
-                        } else {
-                            player.move(nr, nc, board);
-                            System.out.println("  Moved to (" + nr + ", " + nc + ").");
-                        }
-                        board.display();
-                    }
-                }
-            }
+            boolean skipOpponentTurn = doPlayerTurn(scanner, player, opponent, board);
 
             if (!opponent.isAlive()) {
                 board.removeCharacter(opponent.row, opponent.col);
                 break;
             }
 
-            if (!opponentIsNinja) {
+            if (!skipOpponentTurn && !opponentUsedFirstStrike) {
                 opponentAI(opponent, player, rng, board);
                 if (!player.isAlive()) break;
             }
