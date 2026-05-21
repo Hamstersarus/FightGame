@@ -2,6 +2,11 @@ public class Board {
     static final int SIZE = 10;
     String[][] grid;
 
+    // Positions of map objects; -1 means not present (consumed or never spawned)
+    int houseRow = -1,    houseCol = -1;
+    int hospitalRow = -1, hospitalCol = -1;
+    int heartRow = -1,    heartCol = -1;
+
     public Board() {
         grid = new String[SIZE][SIZE];
         for (int r = 0; r < SIZE; r++)

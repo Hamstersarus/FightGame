@@ -23,6 +23,11 @@ public class Opponent extends Character {
             return;
         }
 
+        if (insideHouse) {
+            System.out.println("  🏠 " + name + " is sheltered in the house — the attack has no effect!");
+            return;
+        }
+
         if (parryReady) {
             parryReady = false;
             System.out.println("  💂 PARRY! " + name + " blocks the attack completely!");
@@ -64,6 +69,12 @@ public class Opponent extends Character {
             hasUndying = false;
             System.out.println("  🧟 UNDYING! " + name + " refuses to die — rises with 1 HP!");
         }
+
+        if (hp <= 0 && hasExtraLife) {
+            hp = maxHp;
+            hasExtraLife = false;
+            System.out.println("  💙 EXTRA LIFE! " + name + " is revived at full HP! (" + hp + "/" + maxHp + ")");
+        }
     }
 
     // ── Basic attack ──────────────────────────────────────────────────────────
@@ -84,14 +95,15 @@ public class Opponent extends Character {
 
     boolean isOffensiveAbility() {
         return switch (name) {
-            case "Witch", "Ninja", "Dragon", "Alien", "Computer Virus",
+            case "Goblin", "Witch", "Ninja", "Dragon", "Alien", "Computer Virus",
                  "Vampire", "Knight", "Zombie", "Troll" -> true;
-            default -> false;  // Goblin's Frenzy has no projectile — just the rage effect
+            default -> false;
         };
     }
 
     String abilityProjectile() {
         return switch (name) {
+            case "Goblin"         -> "💢";
             case "Dragon"         -> "🔥";
             case "Ninja"          -> "🥷";
             case "Alien"          -> "🛸";
@@ -264,6 +276,8 @@ public class Opponent extends Character {
 
         if (abilityCooldown > 0) abilityCooldown--;
 
+        if (insideHouse && houseTurnsRemaining > 0) houseTurnsRemaining--;
+
         if (inBatForm) inBatForm = false;
     }
 
@@ -282,5 +296,26 @@ public class Opponent extends Character {
         col = newCol;
         board.placeCharacter(this, newRow, newCol);
         assert row == newRow && col == newCol : "position must update after move";
+    }
+
+    // Moves the character and drags the shield to the cell at (newRow, newCol + shieldColOffset).
+    // Caller is responsible for validating that the new shield cell is in bounds and clear.
+    void moveWithShield(int newRow, int newCol, int shieldColOffset, Board board) {
+        int newSR = newRow, newSC = newCol + shieldColOffset;
+        removeShieldFromBoard();
+        move(newRow, newCol, board);
+        board.grid[newSR][newSC] = "🛡️";
+        shieldRow     = newSR;
+        shieldCol     = newSC;
+        shieldOnBoard = true;
+    }
+
+    // Returns a short shield status string for display in the stat bar (UP / BROKEN / ready).
+    String shieldStatusText() {
+        if (shieldActive)
+            return "🛡️  UP  (" + shieldHp + "/" + maxShieldHp + ")";
+        if (shieldRegenTimer > 0)
+            return "🛡️  BROKEN — regen in " + shieldRegenTimer + " turn(s)";
+        return "🛡️  ready (" + shieldHp + "/" + maxShieldHp + ")";
     }
 }

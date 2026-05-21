@@ -15,6 +15,10 @@ public class Character {
     int     shieldRow = -1;   // board row of placed shield; -1 = not on board
     int     shieldCol = -1;   // board col of placed shield; -1 = not on board
     boolean shieldOnBoard;    // true when the shield emoji occupies a cell
+    boolean insideHouse;         // true while standing on a house cell (immune to damage)
+    int     houseTurnsRemaining; // turns of immunity left; auto-eject when this hits 0
+    boolean needsHouseRestore;   // true after auto-eject so the house emoji is restored on next move
+    boolean hasExtraLife;        // true after picking up a heart; revives at full HP once
     int     hexTurnsRemaining;
     int     burnTurnsRemaining;
 

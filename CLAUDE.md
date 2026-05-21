@@ -13,6 +13,37 @@ No dependencies. All classes live in the default package.
 
 ---
 
+## Instructions Screen
+
+On the character selection screen, before the player enters a number to pick their character, they can press **I** (or **i**) to view the how-to-play instructions. After reading, they press **X** (or **x**) to close the instructions and return to the selection screen to choose their character normally.
+
+### What the instructions should cover
+- **Objective** — reduce the opponent's HP to 0 before they do the same to you
+- **Turn structure** — player always acts first; opponent acts after
+- **Actions each turn:**
+  - Basic Attack — always available, fires a projectile at the opponent for `attackPower` damage
+  - Special Ability — unique per character, only shown when off cooldown; press the number to use it
+  - Raise Shield 🛡️ — blocks all incoming damage until the shield breaks; must be raised manually each time
+  - Move — use W/A/S/D (or the move option number) to reposition on the 10×10 board; moving does NOT end the turn
+- **Shield rules** — the shield is placed as a physical object on the board to your right; if the cell is blocked you must move first; once broken the shield recharges after a few turns
+- **Status effects** — Hex (🧙) and Burn (🔥) deal damage at the start of your turn each tick; you cannot avoid them by moving
+- **Win condition** — opponent reaches 0 HP; some characters (Zombie's Undying) can survive one killing blow
+
+### Implementation
+In `selectCharacters()`, change the input loop so that if the player types `I`, the instructions are printed and the loop continues (re-prompts for a character number). No new screen or method is strictly required — just print the instructions block inline and loop back.
+
+```
+if input == "I":
+    print instructions
+    loop: read input until input == "X"
+    reprint the character roster
+    continue   // loop back to the character number prompt
+```
+
+The instructions print should be clearly separated with a header and footer (e.g. `═══ HOW TO PLAY ═══` / `═══════════════════`) so it's visually distinct from the roster.
+
+---
+
 ## Gameplay Loop
 
 ### Combat Turn Structure
@@ -69,6 +100,86 @@ When the player has not yet chosen an action (i.e. between turns or before comba
 - Player input during free roam: likely WASD or arrow keys for movement, a separate key to interact
 - Combat action menu should list available options each turn (e.g. `1. Attack  2. Use Ability`)
 - Opponent turn logic is automatic — no player input required for the opponent
+
+---
+
+## Map Objects & Power-ups
+
+Three types of objects spawn randomly on the 10×10 board at the start of the game. They are placed on empty cells (not overlapping either character's starting position). Characters interact with them by moving onto the cell they occupy.
+
+---
+
+### House 🏠 — Cover
+
+A character standing inside a house is hidden and cannot be targeted by the opponent's attacks. Any attack aimed at a character inside a house misses completely. The stay is limited to **3 turns** — after that the character is automatically ejected.
+
+**Rules:**
+- When a character moves onto a house cell, set `boolean insideHouse = true` and `int houseTurnsRemaining = 3`
+- While inside, all incoming damage is blocked (check `insideHouse` at the top of `applyDamage()`)
+- The character can still act normally on their turn (attack, use ability, move out early)
+- At the end of each turn (`tickEndOfTurn`), if `insideHouse`, decrement `houseTurnsRemaining`
+- When `houseTurnsRemaining` reaches 0, auto-eject: clear `insideHouse`, set `needsHouseRestore = true`, print a message
+- The house emoji is not immediately restored on eject — `needsHouseRestore` signals that the emoji should be put back the next time the character moves off that cell (`restoreHouseIfVacating` checks both `insideHouse` and `needsHouseRestore`)
+- The house stays on the board permanently and can be re-entered after leaving; each entry resets the 3-turn counter
+- The opponent AI moves toward the house when HP is critically low (below 25%)
+
+**Implementation fields added to `Character`:**
+```java
+boolean insideHouse;
+int     houseTurnsRemaining;
+boolean needsHouseRestore;
+```
+
+---
+
+### Hospital 🏥 — Heal
+
+Moving onto a hospital cell immediately restores HP. The hospital is consumed after one use and removed from the board.
+
+**Rules:**
+- On entering the cell, restore `min(40, maxHp - hp)` HP — capped at max HP
+- Print a message: `"🏥 <name> enters the hospital and recovers X HP! (Y/Z HP)"`
+- Remove the hospital from the board (`board.removeCharacter`) after the heal triggers
+- The opponent AI will move toward the hospital if HP drops below 50%
+
+---
+
+### Heart 💙 — Extra Life
+
+Moving onto a heart cell grants the character one extra life. If they would die while holding the extra life, they instead survive with their current HP reset to their `maxHp` and the extra life is consumed. This is different from Zombie's Undying (which survives at 1 HP) — the heart fully revives.
+
+**Rules:**
+- On entering the cell, set `boolean hasExtraLife = true`
+- Print a message: `"💙 <name> picks up an extra life!"`
+- Remove the heart from the board after pickup
+- In `applyDamage()`, after the Undying check: if `hp <= 0 && hasExtraLife`, set `hp = maxHp`, set `hasExtraLife = false`, print `"💙 EXTRA LIFE! <name> is revived at full HP!"`
+- Only one extra life can be held at a time — if the character already has one, the heart stays on the board (not picked up)
+
+**Implementation fields to add to `Character`:**
+```java
+boolean hasExtraLife;
+```
+
+---
+
+### Spawning
+
+All three objects are placed once at game start, before the first turn, on random empty cells. Placement logic goes in `main()` after the board is set up and characters are placed.
+
+```
+for each object type (house, hospital, heart):
+    pick a random (row, col) where grid[row][col].equals(".")
+    place the emoji on the board
+    store the coordinates so interaction logic can reference them
+```
+
+Store object positions in `main()` as local variables (or a small wrapper) and pass them into `doPlayerTurn` and `opponentAI` if needed, or check directly via `board.grid[row][col]` when a character moves onto a cell.
+
+**Interaction trigger:** after every successful `move()` call (both player and opponent), check whether the new cell's emoji matches a known object emoji and apply the effect.
+
+**Both characters can use all map objects.** The opponent's movement in `moveOpponentToward` runs the same `restoreHouseIfVacating` / `checkObjectInteraction` hooks as the player's movement. The opponent AI also targets objects proactively: moves toward the hospital when HP < 50% (if still on the board), and toward the house when HP < 25%.
+
+**Interacting with an object ends the player's turn.** Moving onto a house, hospital, or heart cell counts as the player's combat action for that turn — the action menu does not reappear after the interaction resolves. This is the same as attacking or raising a shield: once the effect triggers, control passes to the opponent. Plain movement onto an empty cell still does not end the turn.
 
 ---
 
@@ -387,8 +498,19 @@ Scans `board.grid` (accessible from the same default package) for cells where `g
 #### `handleMove(Scanner scanner, String rawChoice, Opponent player, Opponent opponent, Board board)`
 - If `rawChoice` is already a direction letter, uses it directly; otherwise prompts for one
 - Parses W/A/S/D with a switch, validates bounds and opponent collision
-- Calls `player.move(nr, nc, board)` on a valid move, prints result
+- If the player's shield is up, calls `player.moveWithShield(nr, nc, 1, board)` instead of `move` so the shield travels with them; validates the new shield destination before moving
+- Calls `player.move(nr, nc, board)` on a valid move when shield is down
 - Calls `board.display()` after every move attempt
+
+### Methods moved from Fight.java to Opponent.java
+
+Two pieces of logic were refactored out of `Fight.java` into `Opponent.java` because they only operate on a single `Opponent`'s own fields — they have no reason to be static helpers in the controller.
+
+#### `shieldStatusText() → String`  *(was `Fight.shieldStatus(Opponent ch)`)*
+Returns the shield status string shown in the stat bar: `UP`, `BROKEN — regen in N turn(s)`, or `ready`. Moved to `Opponent` as an instance method so it reads as `player.shieldStatusText()` rather than a static call that takes the object as an argument.
+
+#### `moveWithShield(int newRow, int newCol, int shieldColOffset, Board board)`  *(extracted from `handleMove` and `moveOpponentToward`)*
+Moves the character and drags the shield to `(newRow, newCol + shieldColOffset)` in one call. Replaces a duplicated 6-line block that appeared in both `handleMove` (player, offset +1) and `moveOpponentToward` (opponent, offset -1). The caller is responsible for validating that the new shield cell is in bounds and clear before calling this method.
 
 #### `main` structure
 ```

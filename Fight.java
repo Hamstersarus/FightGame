@@ -121,25 +121,10 @@ public class Fight {
     static void printStats(Opponent player, Opponent opponent) {
         System.out.println();
         System.out.println("  " + player.symbol + " YOU  — HP: " + player.hp + "/" + player.maxHp
-                + "  " + shieldStatus(player));
+                + "  " + player.shieldStatusText());
         System.out.println("  " + opponent.symbol + " OPP  — HP: " + opponent.hp + "/" + opponent.maxHp
-                + "  " + shieldStatus(opponent));
+                + "  " + opponent.shieldStatusText());
         System.out.println();
-    }
-
-    /**
-     * Formats a short shield status string for display in the stat bar.
-     * Three possible states:
-     *   UP      — shield is raised and absorbing damage
-     *   BROKEN  — shield was destroyed; shows turns until it regenerates
-     *   ready   — shield is fully charged and can be raised as an action
-     */
-    static String shieldStatus(Opponent ch) {
-        if (ch.shieldActive)
-            return "🛡️  UP  (" + ch.shieldHp + "/" + ch.maxShieldHp + ")";
-        if (ch.shieldRegenTimer > 0)
-            return "🛡️  BROKEN — regen in " + ch.shieldRegenTimer + " turn(s)";
-        return "🛡️  ready (" + ch.shieldHp + "/" + ch.maxShieldHp + ")";
     }
 
     /**
@@ -176,23 +161,26 @@ public class Fight {
     }
 
     /**
-     * Moves the opponent one step toward the player on the board.
+     * Moves the opponent one step toward (targetRow, targetCol) on the board.
      *
      * Movement is Manhattan (no diagonals). The opponent steps along whichever axis
-     * has the larger gap first. If stepping would land on the player's cell, the move
-     * is skipped — characters can't occupy the same cell.
+     * has the larger gap first. The player and their shield are always avoided —
+     * the opponent never steps onto those cells regardless of the target.
      *
-     * Called at the end of opponentAI() after the opponent's action so they close
-     * the distance to the player each turn.
+     * After a successful move, house-restore and object-interaction checks fire so
+     * the opponent can enter the hospital, house, or pick up a heart.
      *
-     * @param opponent the character to move
-     * @param player   the target to move toward
-     * @param board    the arena grid to update
+     * @param opponent  the character to move
+     * @param targetRow destination row (player's row, or a map object's row)
+     * @param targetCol destination col (player's col, or a map object's col)
+     * @param player    used only for avoidance — opponent never steps on player/shield
+     * @param board     the arena grid to update
      */
-    static void moveOpponentToward(Opponent opponent, Opponent player, Board board) {
-        int rowDiff = player.row - opponent.row;
-        int colDiff = player.col - opponent.col;
-        if (rowDiff == 0 && colDiff == 0) return;  // already on top of each other (shouldn't happen)
+    static void moveOpponentToward(Opponent opponent, int targetRow, int targetCol,
+                                   Opponent player, Board board) {
+        int rowDiff = targetRow - opponent.row;
+        int colDiff = targetCol - opponent.col;
+        if (rowDiff == 0 && colDiff == 0) return;
 
         int nr = opponent.row;
         int nc = opponent.col;
@@ -207,7 +195,25 @@ public class Fight {
         if (nr == player.row && nc == player.col) return;
         if (player.shieldOnBoard && nr == player.shieldRow && nc == player.shieldCol) return;
 
-        opponent.move(nr, nc, board);
+        if (opponent.shieldOnBoard) {
+            // Shield travels with the opponent — validate where the shield needs to land
+            int newSR = nr, newSC = nc - 1;
+            if (newSC < 0) return;  // shield would leave the board
+            String destCell = board.grid[newSR][newSC];
+            boolean clearForShield = destCell.equals(".")
+                    || (newSR == opponent.shieldRow && newSC == opponent.shieldCol)
+                    || (newSR == opponent.row       && newSC == opponent.col);
+            if (!clearForShield) return;  // something blocking shield path — skip move
+            String cellWas = board.grid[nr][nc];
+            opponent.moveWithShield(nr, nc, -1, board);
+            restoreHouseIfVacating(opponent, board);
+            checkObjectInteraction(opponent, cellWas, board);
+        } else {
+            String cellWas = board.grid[nr][nc];
+            opponent.move(nr, nc, board);
+            restoreHouseIfVacating(opponent, board);
+            checkObjectInteraction(opponent, cellWas, board);
+        }
         System.out.println("  " + opponent.symbol + " " + opponent.name
                 + " advances to (" + nr + ", " + nc + ").");
     }
@@ -260,15 +266,137 @@ public class Fight {
             opponent.attack(player);
         }
 
-        // After attacking, close the distance to the player
-        moveOpponentToward(opponent, player, board);
+        // After attacking, close the distance to the best target.
+        // Prefer the hospital when wounded, the house when critical, otherwise chase the player.
+        int targetRow = player.row, targetCol = player.col;
+        if (board.hospitalRow >= 0 && opponent.hp < (int)(opponent.maxHp * 0.50)) {
+            targetRow = board.hospitalRow; targetCol = board.hospitalCol;
+        } else if (board.houseRow >= 0 && opponent.hp < (int)(opponent.maxHp * 0.25)) {
+            targetRow = board.houseRow; targetCol = board.houseCol;
+        }
+        moveOpponentToward(opponent, targetRow, targetCol, player, board);
+    }
+
+    // ── Map-object helpers ────────────────────────────────────────────────────
+
+    // Places house, hospital, and heart on random empty cells at game start.
+    static void spawnObjects(Board board, Random rng) {
+        String[] emojis = { "🏠", "🏥", "💙" };
+        int[][] positions = new int[3][2];
+        for (int i = 0; i < emojis.length; i++) {
+            int r, c;
+            do { r = rng.nextInt(Board.SIZE); c = rng.nextInt(Board.SIZE); }
+            while (!board.grid[r][c].equals("."));
+            board.grid[r][c] = emojis[i];
+            positions[i][0] = r; positions[i][1] = c;
+        }
+        board.houseRow    = positions[0][0]; board.houseCol    = positions[0][1];
+        board.hospitalRow = positions[1][0]; board.hospitalCol = positions[1][1];
+        board.heartRow    = positions[2][0]; board.heartCol    = positions[2][1];
+    }
+
+    // Restores the house emoji when ch moves off the house cell — either by choice
+    // (insideHouse still true) or after an auto-eject (needsHouseRestore set instead).
+    static void restoreHouseIfVacating(Opponent ch, Board board) {
+        if (ch.insideHouse || ch.needsHouseRestore) {
+            board.grid[board.houseRow][board.houseCol] = "🏠";
+            ch.insideHouse = false;
+            ch.needsHouseRestore = false;
+        }
+    }
+
+    // Called after tickEndOfTurn — ejects ch from the house when their 3-turn stay expires.
+    // Does not touch the board; the house emoji is restored the next time ch moves away.
+    static void ejectFromHouseIfExpired(Opponent ch, Board board) {
+        if (ch.insideHouse && ch.houseTurnsRemaining == 0) {
+            ch.insideHouse = false;
+            ch.needsHouseRestore = true;
+            System.out.println("  🏠 " + ch.name + "'s 3-turn stay is up — no longer immune.");
+        }
+    }
+
+    // Applies the effect of whichever map object was at the destination cell.
+    // cellWas must be captured from board.grid[nr][nc] BEFORE the move executes.
+    static void checkObjectInteraction(Opponent ch, String cellWas, Board board) {
+        switch (cellWas) {
+            case "🏠" -> {
+                ch.insideHouse = true;
+                ch.houseTurnsRemaining = 3;
+                System.out.println("  🏠 " + ch.name + " ducks into the house! Immune to attacks for 3 turns.");
+            }
+            case "🏥" -> {
+                int healed = Math.min(40, ch.maxHp - ch.hp);
+                ch.hp = Math.min(ch.hp + 40, ch.maxHp);
+                board.hospitalRow = -1; board.hospitalCol = -1;
+                System.out.println("  🏥 " + ch.name + " enters the hospital and recovers "
+                        + healed + " HP! (" + ch.hp + "/" + ch.maxHp + ")");
+            }
+            case "💙" -> {
+                if (!ch.hasExtraLife) {
+                    ch.hasExtraLife = true;
+                    board.heartRow = -1; board.heartCol = -1;
+                    System.out.println("  💙 " + ch.name + " picks up an extra life!");
+                } else {
+                    System.out.println("  💙 " + ch.name + " already has an extra life — can't pick this up.");
+                }
+            }
+        }
     }
 
     // ── Extracted helpers ─────────────────────────────────────────────────────
 
+    /** Prints the full character roster — name, stats, flavor, and ability. */
+    static void printRoster() {
+        System.out.println("Choose your character:\n");
+        for (int i = 0; i < NAMES.length; i++) {
+            System.out.printf("  %2d. %s  %-16s  HP:%-4d  ATK:%-4d  PWR:%d%n",
+                    i + 1, SYMBOLS[i], NAMES[i], HP[i], ATTACK[i], POWER[i]);
+            System.out.println("      " + FLAVOR[i]);
+            System.out.println("      ✦ " + SPECIAL[i]);
+            System.out.println();
+        }
+        System.out.println("  (I) How to play");
+    }
+
+    /**
+     * Prints the how-to-play instructions and waits for the player to press X.
+     * Called when the player types I on the character selection screen.
+     */
+    static void printInstructions(Scanner scanner) {
+        System.out.println("\n╔══════════════════════════════╗");
+        System.out.println("║        HOW TO PLAY           ║");
+        System.out.println("╚══════════════════════════════╝\n");
+        System.out.println("  OBJECTIVE");
+        System.out.println("  Reduce the opponent's HP to 0 before they do the same to you.\n");
+        System.out.println("  TURN STRUCTURE");
+        System.out.println("  You always act first. The opponent acts after you.\n");
+        System.out.println("  YOUR ACTIONS EACH TURN:");
+        System.out.println("    1. Basic Attack    — deal your attack power as damage");
+        System.out.println("    2. Special Ability — unique per character; shown when off cooldown");
+        System.out.println("    3. Raise Shield 🛡️  — absorbs damage until broken; must be raised manually");
+        System.out.println("       The shield is placed to your RIGHT on the board.");
+        System.out.println("       If that cell is blocked, move first to clear the space.");
+        System.out.println("    4. Move            — W=up  S=down  A=left  D=right");
+        System.out.println("       Moving does NOT end your turn.\n");
+        System.out.println("  STATUS EFFECTS");
+        System.out.println("  Hex 🌀 and Burn 🔥 deal damage at the start of your turn each tick.");
+        System.out.println("  You cannot avoid them by moving.\n");
+        System.out.println("  WIN CONDITION");
+        System.out.println("  Opponent reaches 0 HP.");
+        System.out.println("  Some characters can survive one killing blow (e.g. Zombie's Undying).\n");
+        System.out.println("════════════════════════════════");
+        System.out.print("  Press X to return: ");
+        while (!scanner.nextLine().trim().toUpperCase().equals("X")) {
+            System.out.print("  Press X to return: ");
+        }
+    }
+
     /**
      * Shows the title screen and roster, takes the player's character choice,
      * and automatically selects a fair opponent using the matchmaking system.
+     *
+     * The player can type I at any point to open the instructions screen.
+     * Pressing X closes instructions and returns to the roster.
      *
      * Matchmaking algorithm:
      *   1. Calculate a tolerance window of ±35% around the player's power score
@@ -284,22 +412,21 @@ public class Fight {
         System.out.println("╔══════════════════════════════╗");
         System.out.println("║           F I G H T          ║");
         System.out.println("╚══════════════════════════════╝\n");
-        System.out.println("Choose your character:\n");
+        printRoster();
 
-        // Print the full roster with stats, flavor text, and ability description
-        for (int i = 0; i < NAMES.length; i++) {
-            System.out.printf("  %2d. %s  %-16s  HP:%-4d  ATK:%-4d  PWR:%d%n",
-                    i + 1, SYMBOLS[i], NAMES[i], HP[i], ATTACK[i], POWER[i]);
-            System.out.println("      " + FLAVOR[i]);
-            System.out.println("      ✦ " + SPECIAL[i]);
-            System.out.println();
-        }
-
-        // Input validation loop — keep asking until the player enters 1–10
+        // Input loop — accepts 1–10 to choose a character, or I to view instructions
         int choice = 0;
         System.out.print("\nEnter number (1-10): ");
         while (choice < 1 || choice > 10) {
-            try { choice = Integer.parseInt(scanner.nextLine().trim()); }
+            String raw = scanner.nextLine().trim().toUpperCase();
+            if (raw.equals("I")) {
+                printInstructions(scanner);
+                System.out.println();
+                printRoster();
+                System.out.print("\nEnter number (1-10): ");
+                continue;
+            }
+            try { choice = Integer.parseInt(raw); }
             catch (NumberFormatException e) { }   // non-numeric input — just re-prompt
             if (choice < 1 || choice > 10) System.out.print("Enter 1-10: ");
         }
@@ -389,10 +516,32 @@ public class Fight {
             System.out.println("  Opponent is there — can't move into them.");
         } else if (opponent.shieldOnBoard && nr == opponent.shieldRow && nc == opponent.shieldCol) {
             System.out.println("  Opponent's shield is there — can't move into it.");
-        } else if (player.shieldOnBoard && nr == player.shieldRow && nc == player.shieldCol) {
-            System.out.println("  Your own shield is there — move backwards to get away from it.");
+        } else if (player.shieldOnBoard) {
+            // Shield travels with the player — validate where the shield needs to land
+            int newSR = nr, newSC = nc + 1;
+            if (newSC >= Board.SIZE) {
+                System.out.println("  Shield is blocked by the wall — can't move that way.");
+            } else {
+                String destCell = board.grid[newSR][newSC];
+                // New shield cell is acceptable if it's empty, the old shield cell, or the player's current cell
+                boolean clearForShield = destCell.equals(".")
+                        || (newSR == player.shieldRow && newSC == player.shieldCol)
+                        || (newSR == player.row       && newSC == player.col);
+                if (!clearForShield) {
+                    System.out.println("  Shield is blocked — can't move that way.");
+                } else {
+                    String cellWas = board.grid[nr][nc];
+                    player.moveWithShield(nr, nc, 1, board);
+                    restoreHouseIfVacating(player, board);
+                    checkObjectInteraction(player, cellWas, board);
+                    System.out.println("  Moved to (" + nr + ", " + nc + ").");
+                }
+            }
         } else {
+            String cellWas = board.grid[nr][nc];
             player.move(nr, nc, board);
+            restoreHouseIfVacating(player, board);
+            checkObjectInteraction(player, cellWas, board);
             System.out.println("  Moved to (" + nr + ", " + nc + ").");
         }
 
@@ -476,7 +625,11 @@ public class Fight {
                 if (player.name.equals("Ninja")) return true;
             } else if (shieldOpt > 0 && playerChoice == shieldOpt) {
                 // Raise Shield — only ends the turn if placement succeeded
-                if (player.raiseShield(board, 1)) combatActionTaken = true;
+                if (player.raiseShield(board, 1)) {
+                    combatActionTaken = true;
+                } else {
+                    board.display();  // show board so player sees what is blocking
+                }
             } else {
                 // Move — does not end the turn; loops back to the action menu
                 handleMove(scanner, rawChoice, player, opponent, board);
@@ -519,6 +672,7 @@ public class Fight {
         opponent.row = 9; opponent.col = 9;    // bottom-right corner
         board.placeCharacter(player,   player.row,   player.col);
         board.placeCharacter(opponent, opponent.row, opponent.col);
+        spawnObjects(board, rng);
 
         System.out.println("\n=== FIGHT BEGINS ===");
         board.display();
@@ -571,6 +725,10 @@ public class Fight {
             // 3e. End-of-turn upkeep for both characters
             player.tickEndOfTurn();
             opponent.tickEndOfTurn();
+
+            // Auto-eject from the house after the 3-turn immunity expires
+            ejectFromHouseIfExpired(player, board);
+            ejectFromHouseIfExpired(opponent, board);
 
             // 3f. Show the current board state
             System.out.println();
