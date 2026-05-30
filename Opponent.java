@@ -19,18 +19,18 @@ public class Opponent extends Character {
         assert rawDamage >= 0 : "rawDamage must be non-negative";
 
         if (inBatForm) {
-            System.out.println("  🦇 " + name + " is a bat — the attack passes right through!");
+            System.out.println("  " + CYAN + "🦇 " + name + " is a bat — the attack passes right through!" + RESET);
             return;
         }
 
         if (insideHouse) {
-            System.out.println("  🏠 " + name + " is sheltered in the house — the attack has no effect!");
+            System.out.println("  " + CYAN + "🏠 " + name + " is sheltered in the house — the attack has no effect!" + RESET);
             return;
         }
 
         if (parryReady) {
             parryReady = false;
-            System.out.println("  💂 PARRY! " + name + " blocks the attack completely!");
+            System.out.println("  " + CYAN + BOLD + "💂 PARRY! " + name + " blocks the attack completely!" + RESET);
             return;
         }
 
@@ -40,19 +40,19 @@ public class Opponent extends Character {
             if (shieldHp >= incoming) {
                 shieldHp -= incoming;
                 incoming = 0;
-                System.out.println("  🛡️  Shield absorbs the hit! ("
-                        + shieldHp + "/" + maxShieldHp + " shield HP remaining)");
+                System.out.println("  " + BLUE + "🛡️  Shield absorbs the hit! ("
+                        + shieldHp + "/" + maxShieldHp + " shield HP remaining)" + RESET);
                 if (shieldHp == 0) {
                     shieldActive = false;
                     shieldRegenTimer = shieldRegenDelay;
                     removeShieldFromBoard();
-                    System.out.println("  💥 " + name + "'s shield is broken! Regenerates in "
-                            + shieldRegenTimer + " turns.");
+                    System.out.println("  " + YELLOW + "💥 " + name + "'s shield is broken! Regenerates in "
+                            + shieldRegenTimer + " turns." + RESET);
                 }
             } else {
                 incoming -= shieldHp;
-                System.out.println("  💥 Shield breaks! " + incoming
-                        + " damage bleeds through to " + name + "!");
+                System.out.println("  " + YELLOW + "💥 Shield breaks! " + RED + incoming
+                        + YELLOW + " damage bleeds through to " + name + "!" + RESET);
                 shieldHp = 0;
                 shieldActive = false;
                 shieldRegenTimer = shieldRegenDelay;
@@ -61,19 +61,22 @@ public class Opponent extends Character {
         }
 
         hp -= incoming;
-        if (incoming > 0)
-            System.out.println("  " + name + " has " + Math.max(0, hp) + " HP remaining.");
+        if (incoming > 0) {
+            int remaining = Math.max(0, hp);
+            String hpColor = remaining <= maxHp * 0.25 ? RED : remaining <= maxHp * 0.5 ? YELLOW : GREEN;
+            System.out.println("  " + name + " has " + hpColor + remaining + RESET + " HP remaining.");
+        }
 
         if (hp <= 0 && hasUndying) {
             hp = 1;
             hasUndying = false;
-            System.out.println("  🧟 UNDYING! " + name + " refuses to die — rises with 1 HP!");
+            System.out.println("  " + MAGENTA + BOLD + "🧟 UNDYING! " + name + " refuses to die — rises with 1 HP!" + RESET);
         }
 
         if (hp <= 0 && hasExtraLife) {
             hp = maxHp;
             hasExtraLife = false;
-            System.out.println("  💙 EXTRA LIFE! " + name + " is revived at full HP! (" + hp + "/" + maxHp + ")");
+            System.out.println("  " + GREEN + BOLD + "💙 EXTRA LIFE! " + name + " is revived at full HP! (" + hp + "/" + maxHp + ")" + RESET);
         }
     }
 
@@ -83,7 +86,7 @@ public class Opponent extends Character {
         assert target != null : "target must not be null";
         assert isAlive()      : "attacker must be alive";
         System.out.println("  " + name + " shoots at " + target.name
-                + " for " + attackPower + " damage!");
+                + " for " + RED + attackPower + RESET + " damage!");
         target.applyDamage(attackPower);
     }
 
@@ -140,65 +143,65 @@ public class Opponent extends Character {
         switch (name) {
             case "Goblin" -> {
                 int dmg = attackPower * 2;
-                System.out.println("  👹 FRENZY! " + name
-                        + " attacks with wild rage for " + dmg + " damage!");
+                System.out.println("  " + RED + BOLD + "👹 FRENZY! " + name
+                        + " attacks with wild rage for " + dmg + " damage!" + RESET);
                 target.applyDamage(dmg);
                 abilityCooldown = 3;
             }
             case "Witch" -> {
                 target.hexTurnsRemaining = 3;
-                System.out.println("  🧙 HEX! " + name + " curses " + target.name
-                        + "! (" + HEX_DAMAGE + " HP/turn for 3 turns)");
+                System.out.println("  " + MAGENTA + BOLD + "🧙 HEX! " + RESET + MAGENTA + name + " curses " + target.name
+                        + "! (" + HEX_DAMAGE + " HP/turn for 3 turns)" + RESET);
                 abilityCooldown = 4;
             }
             case "Vampire" -> {
                 inBatForm = true;
-                System.out.println("  🧛 " + name
-                        + " transforms into a bat! 🦇 Immune to damage this turn!");
+                System.out.println("  " + CYAN + BOLD + "🧛 " + name
+                        + " transforms into a bat! 🦇 Immune to damage this turn!" + RESET);
                 abilityCooldown = 5;
             }
             case "Ninja" -> {
-                System.out.println("  🥷 FIRST STRIKE! " + name
-                        + " strikes before the opponent can react!");
+                System.out.println("  " + YELLOW + BOLD + "🥷 FIRST STRIKE! " + RESET + YELLOW + name
+                        + " strikes before the opponent can react!" + RESET);
                 target.applyDamage(attackPower);
                 abilityCooldown = 3;
             }
             case "Knight" -> {
                 parryReady = true;
-                System.out.println("  💂 " + name
-                        + " raises their guard! Ready to parry the next attack!");
+                System.out.println("  " + CYAN + BOLD + "💂 " + name
+                        + " raises their guard! Ready to parry the next attack!" + RESET);
                 abilityCooldown = 4;
             }
             case "Dragon" -> {
-                System.out.println("  🐉 " + name + " shoots fire 🔥 at "
-                        + target.name + " for 30 damage!");
+                System.out.println("  " + RED + BOLD + "🐉 " + name + " shoots fire 🔥 at "
+                        + target.name + " for 30 damage!" + RESET);
                 target.applyDamage(30);
                 abilityCooldown = 3;
             }
             case "Zombie" -> {
                 hasUndying = true;
-                System.out.println("  🧟 " + name
+                System.out.println("  " + MAGENTA + BOLD + "🧟 " + name
                         + " embraces death... Undying activated! Survives the next"
-                        + " killing blow with 1 HP!");
+                        + " killing blow with 1 HP!" + RESET);
                 abilityCooldown = 5;
             }
             case "Alien" -> {
-                System.out.println("  👽 " + name + " summons a UFO! 🛸 Three cows 🐄🐄🐄"
-                        + " rain down on " + target.name + "! (45 damage)");
+                System.out.println("  " + RED + BOLD + "👽 " + name + " summons a UFO! 🛸 Three cows 🐄🐄🐄"
+                        + " rain down on " + target.name + "! (45 damage)" + RESET);
                 target.applyDamage(45);
                 abilityCooldown = 4;
             }
             case "Troll" -> {
                 int healed = Math.min(24, maxHp - hp);
                 hp = Math.min(hp + 24, maxHp);
-                System.out.println("  🧌 " + name + " surges with regenerative power! +"
-                        + healed + " HP  (" + hp + "/" + maxHp + ")");
+                System.out.println("  " + GREEN + BOLD + "🧌 " + name + " surges with regenerative power! +"
+                        + healed + " HP  (" + hp + "/" + maxHp + ")" + RESET);
                 abilityCooldown = 5;
             }
             case "Computer Virus" -> {
                 int dmg = attackPower + 20;
-                System.out.println("  👾 " + name + " corrupts " + target.name
-                        + "'s systems! (" + dmg + " corrupted damage)");
+                System.out.println("  " + RED + BOLD + "👾 " + name + " corrupts " + target.name
+                        + "'s systems! (" + dmg + " corrupted damage)" + RESET);
                 target.applyDamage(dmg);
                 abilityCooldown = 4;
             }
@@ -216,14 +219,8 @@ public class Opponent extends Character {
         int sr = row;
         int sc = col + colOffset;
 
-        if (sc < 0 || sc >= Board.SIZE) {
-            System.out.println("  No room — at the edge of the board, can't raise shield here.");
-            return false;
-        }
-        if (!board.grid[sr][sc].equals(".")) {
-            System.out.println("  Something is in the way — can't raise your shield here.");
-            return false;
-        }
+        if (sc < 0 || sc >= Board.SIZE) return false;
+        if (!board.grid[sr][sc].equals("."))  return false;
 
         board.grid[sr][sc] = "🛡️";
         shieldRow = sr;
@@ -231,8 +228,8 @@ public class Opponent extends Character {
         shieldOnBoard = true;
         boardRef = board;
         shieldActive = true;
-        System.out.println("  🛡️  " + name + " raises their shield! ("
-                + shieldHp + "/" + maxShieldHp + " shield HP)");
+        System.out.println("  " + BLUE + "🛡️  " + name + " raises their shield! ("
+                + shieldHp + "/" + maxShieldHp + " shield HP)" + RESET);
         assert shieldActive : "shield must be active after raising";
         return true;
     }
@@ -250,15 +247,15 @@ public class Opponent extends Character {
 
     void tickStartOfTurn() {
         if (hexTurnsRemaining > 0) {
-            System.out.println("  🧙 Hex ticks on " + name + "! -" + HEX_DAMAGE + " HP  ("
-                    + (hexTurnsRemaining - 1) + " turns left)");
+            System.out.println("  " + MAGENTA + "🧙 Hex ticks on " + name + "! -" + HEX_DAMAGE + " HP  ("
+                    + (hexTurnsRemaining - 1) + " turns left)" + RESET);
             hp -= HEX_DAMAGE;
             hexTurnsRemaining--;
         }
 
         if (burnTurnsRemaining > 0) {
-            System.out.println("  🔥 Burn ticks on " + name + "! -" + BURN_DAMAGE + " HP  ("
-                    + (burnTurnsRemaining - 1) + " turns left)");
+            System.out.println("  " + RED + "🔥 Burn ticks on " + name + "! -" + BURN_DAMAGE + " HP  ("
+                    + (burnTurnsRemaining - 1) + " turns left)" + RESET);
             hp -= BURN_DAMAGE;
             burnTurnsRemaining--;
         }
@@ -269,8 +266,8 @@ public class Opponent extends Character {
             shieldRegenTimer--;
             if (shieldRegenTimer == 0) {
                 shieldHp = maxShieldHp;
-                System.out.println("  🛡️  " + name + "'s shield regenerated! ("
-                        + shieldHp + "/" + maxShieldHp + " HP) — ready to raise.");
+                System.out.println("  " + BLUE + "🛡️  " + name + "'s shield regenerated! ("
+                        + shieldHp + "/" + maxShieldHp + " HP) — ready to raise." + RESET);
             }
         }
 
@@ -313,9 +310,9 @@ public class Opponent extends Character {
     // Returns a short shield status string for display in the stat bar (UP / BROKEN / ready).
     String shieldStatusText() {
         if (shieldActive)
-            return "🛡️  UP  (" + shieldHp + "/" + maxShieldHp + ")";
+            return BLUE + "🛡️  UP  (" + shieldHp + "/" + maxShieldHp + ")" + RESET;
         if (shieldRegenTimer > 0)
-            return "🛡️  BROKEN — regen in " + shieldRegenTimer + " turn(s)";
-        return "🛡️  ready (" + shieldHp + "/" + maxShieldHp + ")";
+            return RED + "🛡️  BROKEN — regen in " + shieldRegenTimer + " turn(s)" + RESET;
+        return DIM + "🛡️  ready (" + shieldHp + "/" + maxShieldHp + ")" + RESET;
     }
 }

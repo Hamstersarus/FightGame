@@ -113,17 +113,55 @@ public class Fight {
         return new Opponent(NAMES[i], HP[i], ATTACK[i], SYMBOLS[i], SHIELD[i], REGEN[i]);
     }
 
+    // Returns a 10-block HP bar colored green/yellow/red based on remaining percentage.
+    static String hpBar(int current, int max) {
+        int filled = max == 0 ? 0 : Math.max(0, Math.min(10, (current * 10) / max));
+        String color = filled > 6 ? Character.GREEN : filled > 3 ? Character.YELLOW : Character.RED;
+        return color + "▓".repeat(filled) + Character.DIM + "░".repeat(10 - filled) + Character.RESET;
+    }
+
+    // Returns a compact string showing active status effects (hex, burn, house) for the stat bar.
+    static String statusEffectText(Opponent ch) {
+        StringBuilder sb = new StringBuilder();
+        if (ch.hexTurnsRemaining  > 0) sb.append(Character.MAGENTA).append("  🧙×").append(ch.hexTurnsRemaining).append(Character.RESET);
+        if (ch.burnTurnsRemaining > 0) sb.append(Character.RED).append("  🔥×").append(ch.burnTurnsRemaining).append(Character.RESET);
+        if (ch.insideHouse)            sb.append(Character.CYAN).append("  🏠×").append(ch.houseTurnsRemaining).append(Character.RESET);
+        return sb.toString();
+    }
+
+    // Prints the board with a cyan border. Emoji cells (length > 1) are 2 display chars wide;
+    // dot cells get a trailing space to match, keeping the right border aligned.
+    static void printBoard(Board board) {
+        String top = "  " + Character.CYAN + "┌" + "──".repeat(Board.SIZE) + "┐" + Character.RESET;
+        String bot = "  " + Character.CYAN + "└" + "──".repeat(Board.SIZE) + "┘" + Character.RESET;
+        System.out.println(top);
+        for (int r = 0; r < Board.SIZE; r++) {
+            System.out.print("  " + Character.CYAN + "│" + Character.RESET);
+            for (int c = 0; c < Board.SIZE; c++) {
+                String cell = board.grid[r][c];
+                System.out.print(cell.length() == 1 ? cell + " " : cell);
+            }
+            System.out.println(Character.CYAN + "│" + Character.RESET);
+        }
+        System.out.println(bot);
+    }
+
     /**
-     * Prints a two-line HP summary for both characters above the action menu.
-     * Shows current HP, max HP, and shield status so the player always knows the
-     * state of the fight before choosing their action.
+     * Prints a two-line HP summary for both characters above the action menu,
+     * with color-coded HP bars and active status effect indicators.
      */
     static void printStats(Opponent player, Opponent opponent) {
         System.out.println();
-        System.out.println("  " + player.symbol + " YOU  — HP: " + player.hp + "/" + player.maxHp
-                + "  " + player.shieldStatusText());
-        System.out.println("  " + opponent.symbol + " OPP  — HP: " + opponent.hp + "/" + opponent.maxHp
-                + "  " + opponent.shieldStatusText());
+        System.out.println("  " + Character.CYAN + Character.BOLD + player.symbol + " YOU" + Character.RESET
+                + "  " + hpBar(player.hp, player.maxHp)
+                + "  " + player.hp + "/" + player.maxHp
+                + "  " + player.shieldStatusText()
+                + statusEffectText(player));
+        System.out.println("  " + Character.RED + Character.BOLD + opponent.symbol + " OPP" + Character.RESET
+                + "  " + hpBar(opponent.hp, opponent.maxHp)
+                + "  " + opponent.hp + "/" + opponent.maxHp
+                + "  " + opponent.shieldStatusText()
+                + statusEffectText(opponent));
         System.out.println();
     }
 
@@ -409,14 +447,14 @@ public class Fight {
      * @return array of exactly two Opponents: [0] = player, [1] = opponent
      */
     static Opponent[] selectCharacters(Scanner scanner, Random rng) {
-        System.out.println("╔══════════════════════════════╗");
+        System.out.println(Character.CYAN + Character.BOLD + "╔══════════════════════════════╗");
         System.out.println("║           F I G H T          ║");
-        System.out.println("╚══════════════════════════════╝\n");
+        System.out.println("╚══════════════════════════════╝" + Character.RESET + "\n");
         printRoster();
 
         // Input loop — accepts 1–10 to choose a character, or I to view instructions
         int choice = 0;
-        System.out.print("\nEnter number (1-10): ");
+        System.out.print("\nEnter number (1-10) or letter (I): ");
         while (choice < 1 || choice > 10) {
             String raw = scanner.nextLine().trim().toUpperCase();
             if (raw.equals("I")) {
@@ -546,7 +584,7 @@ public class Fight {
         }
 
         // Always redraw the board after a move attempt so the player sees the result
-        board.display();
+        printBoard(board);
     }
 
     /**
@@ -571,15 +609,15 @@ public class Fight {
         while (!combatActionTaken) {
             printStats(player, opponent);
 
-            System.out.println("  Your turn! Choose an action:");
-            System.out.println("    1. Basic Attack");
+            System.out.println("  " + Character.BOLD + "── Your Turn ─────────────────────────" + Character.RESET);
+            System.out.println("    1  Basic Attack");
             int nextOpt = 2;
             int abilityOpt = 0, shieldOpt = 0;
 
             // Show ability option only when it's off cooldown
             if (player.canUseAbility()) {
                 abilityOpt = nextOpt++;
-                System.out.println("    " + abilityOpt + ". " + player.abilityMenuText());
+                System.out.println("    " + abilityOpt + "  " + player.abilityMenuText());
             }
 
             // Show shield option only when the shield is available to raise
@@ -588,11 +626,12 @@ public class Fight {
                     && player.shieldRegenTimer == 0;
             if (canShield) {
                 shieldOpt = nextOpt++;
-                System.out.println("    " + shieldOpt + ". Raise Shield 🛡️  ("
-                        + player.shieldHp + "/" + player.maxShieldHp + " HP)");
+                System.out.println("    " + shieldOpt + "  Raise Shield 🛡️   "
+                        + player.shieldHp + "/" + player.maxShieldHp + " HP");
             }
             int moveOpt = nextOpt;
-            System.out.println("    " + moveOpt + ". Move  (W=up  S=down  A=left  D=right)");
+            System.out.println("    " + moveOpt + "  Move   W↑  S↓  A←  D→");
+            System.out.println("  " + Character.DIM + "──────────────────────────────────────" + Character.RESET);
 
             // Read the player's choice, accepting either a number or a WASD shortcut
             int playerChoice = 0;
@@ -628,7 +667,12 @@ public class Fight {
                 if (player.raiseShield(board, 1)) {
                     combatActionTaken = true;
                 } else {
-                    board.display();  // show board so player sees what is blocking
+                    int shieldCol = player.col + 1;
+                    if (shieldCol >= Board.SIZE)
+                        System.out.println("  " + Character.YELLOW + "At the edge — no room to raise your shield here." + Character.RESET);
+                    else
+                        System.out.println("  " + Character.YELLOW + "Something is in the way — can't raise your shield here." + Character.RESET);
+                    printBoard(board);
                 }
             } else {
                 // Move — does not end the turn; loops back to the action menu
@@ -654,7 +698,7 @@ public class Fight {
      *        d. opponentAI() — opponent acts (skipped if player used Ninja First Strike
      *           or if the opponent already used their Ninja First Strike this turn)
      *        e. tickEndOfTurn() for both — shield regen, ability cooldowns, Bat Form expiry
-     *        f. board.display() — show updated positions
+     *        f. printBoard(board) — show updated positions
      *   4. Game over — print result and close the scanner
      */
     public static void main(String[] args) {
@@ -674,14 +718,14 @@ public class Fight {
         board.placeCharacter(opponent, opponent.row, opponent.col);
         spawnObjects(board, rng);
 
-        System.out.println("\n=== FIGHT BEGINS ===");
-        board.display();
+        System.out.println("\n" + Character.BOLD + Character.WHITE + "═══════════════ FIGHT BEGINS ═══════════════" + Character.RESET);
+        printBoard(board);
 
         // Step 3: Main turn loop — continues until one character runs out of HP
         int turn = 0;
         while (player.isAlive() && opponent.isAlive()) {
             turn++;
-            System.out.println("\n════════════════ Turn " + turn + " ════════════════");
+            System.out.println("\n" + Character.YELLOW + Character.BOLD + "════════════════ Turn " + turn + " ════════════════" + Character.RESET);
 
             // 3a. Apply start-of-turn status effects (Hex, Burn) to both characters.
             // Check isAlive() immediately — a DoT tick could be the killing blow.
@@ -732,17 +776,19 @@ public class Fight {
 
             // 3f. Show the current board state
             System.out.println();
-            board.display();
+            printBoard(board);
         }
 
         // Step 4: Game over — show final board and result
         System.out.println();
-        board.display();
-        System.out.println("\n═══════════════ GAME OVER ═══════════════");
+        printBoard(board);
+        System.out.println("\n" + Character.BOLD + "═══════════════ GAME OVER ═══════════════" + Character.RESET);
         if (player.isAlive())
-            System.out.println("YOU WIN!  " + player.symbol + "  " + player.name + " is victorious!");
+            System.out.println(Character.GREEN + Character.BOLD + "YOU WIN!  " + Character.RESET
+                    + player.symbol + "  " + player.name + " is victorious!");
         else
-            System.out.println("YOU LOSE. " + opponent.symbol + "  " + opponent.name + " defeated you.");
+            System.out.println(Character.RED + Character.BOLD + "YOU LOSE. " + Character.RESET
+                    + opponent.symbol + "  " + opponent.name + " defeated you.");
         }  // end try-with-resources (scanner closed automatically)
     }
 }

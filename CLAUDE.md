@@ -13,6 +13,71 @@ No dependencies. All classes live in the default package.
 
 ---
 
+## Visual Style
+
+### ANSI Colors
+Color constants are defined as `static final String` fields in `Character.java` so they are accessible everywhere:
+- `Opponent.java` inherits them directly (bare names: `RED`, `GREEN`, etc.)
+- `Fight.java` references them as `Character.RED`, `Character.GREEN`, etc.
+
+| Constant | Code | Used for |
+|---|---|---|
+| `RESET`   | `\033[0m`  | End any color sequence |
+| `BOLD`    | `\033[1m`  | Banners, ability names, stat labels |
+| `DIM`     | `\033[2m`  | Empty HP bar blocks, action menu separator |
+| `RED`     | `\033[91m` | Damage numbers, YOU LOSE, enemy stat label, burn ticks |
+| `GREEN`   | `\033[92m` | Heals, revives, YOU WIN, full HP bar |
+| `YELLOW`  | `\033[93m` | Turn banners, shield warnings, mid HP bar |
+| `BLUE`    | `\033[94m` | Shield active / raised / regenerated messages |
+| `MAGENTA` | `\033[95m` | Hex ticks, Witch ability, Zombie Undying |
+| `CYAN`    | `\033[96m` | Immunity messages, board border, player stat label, title box |
+| `WHITE`   | `\033[97m` | FIGHT BEGINS banner |
+
+### HP Bar
+Displayed in `printStats()` between the character label and the HP numbers.
+
+```java
+static String hpBar(int current, int max) {
+    int filled = max == 0 ? 0 : Math.max(0, Math.min(10, (current * 10) / max));
+    String color = filled > 6 ? GREEN : filled > 3 ? YELLOW : RED;
+    return color + "▓".repeat(filled) + DIM + "░".repeat(10 - filled) + RESET;
+}
+```
+
+10 blocks total. Color thresholds: >60% → green, 30–60% → yellow, ≤30% → red.
+
+### Status Effect Indicators
+`statusEffectText(Opponent ch)` returns a compact inline string appended to the stat bar:
+- `🧙×N` (magenta) — Hex turns remaining
+- `🔥×N` (red) — Burn turns remaining
+- `🏠×N` (cyan) — House immunity turns remaining
+
+### Bordered Board
+`printBoard(Board board)` replaces all `board.display()` calls. Draws a cyan `┌─┐ │ └─┘` border around the 10×10 grid. Emoji cells (Java `String.length() > 1`) are printed without a trailing space because they already occupy 2 display columns; dot cells get one trailing space to match. This keeps the right border aligned.
+
+### Action Menu
+- Bold `── Your Turn ──` header line above the options
+- Dim `──────────────` separator line below the options before the `Choice:` prompt  
+- Options use `N  Label` format (number + two spaces, no period)
+- Move option shows `W↑  S↓  A←  D→` instead of written-out directions
+
+### Colored Banners
+| Text | Color |
+|---|---|
+| Title box `╔ F I G H T ╗` | Bold cyan |
+| `═══ FIGHT BEGINS ═══` | Bold white |
+| `════ Turn N ════` | Bold yellow |
+| `═══ GAME OVER ═══` | Bold (no color) |
+| `YOU WIN!` | Bold green |
+| `YOU LOSE.` | Bold red |
+
+---
+
+### Shield Raise — Message Location
+The "can't raise shield here" messages are printed **only at the player call site** (`doPlayerTurn`), not inside `raiseShield()`. This means the opponent AI can silently fail to raise its shield without printing confusing messages to the player. `raiseShield()` simply returns `false` on failure; the caller decides whether to inform the user.
+
+---
+
 ## Instructions Screen
 
 On the character selection screen, before the player enters a number to pick their character, they can press **I** (or **i**) to view the how-to-play instructions. After reading, they press **X** (or **x**) to close the instructions and return to the selection screen to choose their character normally.

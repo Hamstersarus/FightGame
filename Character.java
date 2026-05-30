@@ -2,6 +2,18 @@ public class Character {
     static final int HEX_DAMAGE  = 5;
     static final int BURN_DAMAGE = 8;
 
+    // ANSI escape codes — accessible from Opponent (via inheritance) and Fight (via Character.X)
+    static final String RESET   = "\033[0m";
+    static final String BOLD    = "\033[1m";
+    static final String DIM     = "\033[2m";
+    static final String RED     = "\033[91m";
+    static final String GREEN   = "\033[92m";
+    static final String YELLOW  = "\033[93m";
+    static final String BLUE    = "\033[94m";
+    static final String MAGENTA = "\033[95m";
+    static final String CYAN    = "\033[96m";
+    static final String WHITE   = "\033[97m";
+
     String  name;
     int     hp;
     int     attackPower;
