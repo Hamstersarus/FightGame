@@ -1,3 +1,5 @@
+import java.util.Random;
+
 public class Opponent extends Character {
 
     int     maxHp;
@@ -314,5 +316,74 @@ public class Opponent extends Character {
         if (shieldRegenTimer > 0)
             return RED + "🛡️  BROKEN — regen in " + shieldRegenTimer + " turn(s)" + RESET;
         return DIM + "🛡️  ready (" + shieldHp + "/" + maxShieldHp + ")" + RESET;
+    }
+
+    // ── AI movement & turn ────────────────────────────────────────────────────
+
+    // Moves this opponent one step toward (targetRow, targetCol), avoiding the
+    // player's cell and shield. Triggers house/object interactions on arrival.
+    void moveOpponentToward(int targetRow, int targetCol, Opponent player, Board board) {
+        int rowDiff = targetRow - row;
+        int colDiff = targetCol - col;
+        if (rowDiff == 0 && colDiff == 0) return;
+
+        int nr = row, nc = col;
+        if (Math.abs(rowDiff) >= Math.abs(colDiff))
+            nr += Integer.compare(rowDiff, 0);
+        else
+            nc += Integer.compare(colDiff, 0);
+
+        if (nr == player.row && nc == player.col) return;
+        if (player.shieldOnBoard && nr == player.shieldRow && nc == player.shieldCol) return;
+
+        if (shieldOnBoard) {
+            int newSR = nr, newSC = nc - 1;
+            if (newSC < 0) return;
+            String destCell = board.grid[newSR][newSC];
+            boolean clearForShield = destCell.equals(".")
+                    || (newSR == shieldRow && newSC == shieldCol)
+                    || (newSR == row       && newSC == col);
+            if (!clearForShield) return;
+            String cellWas = board.grid[nr][nc];
+            moveWithShield(nr, nc, -1, board);
+            board.restoreHouseIfVacating(this);
+            board.checkObjectInteraction(this, cellWas);
+        } else {
+            String cellWas = board.grid[nr][nc];
+            move(nr, nc, board);
+            board.restoreHouseIfVacating(this);
+            board.checkObjectInteraction(this, cellWas);
+        }
+        System.out.println("  " + symbol + " " + name + " advances to (" + nr + ", " + nc + ").");
+    }
+
+    // Decides and executes this opponent's full action for the turn, then moves.
+    void opponentAI(Opponent player, Random rng, Board board) {
+        if (inBatForm) return;
+
+        System.out.println("\n  [" + symbol + " " + name + "'s turn]");
+
+        boolean canShield = !shieldActive && shieldHp > 0 && shieldRegenTimer == 0;
+        if (canShield && hp < (int)(maxHp * 0.45)) {
+            if (raiseShield(board, -1)) return;
+        }
+
+        boolean willUseAbility = canUseAbility() && !name.equals("Vampire") && rng.nextBoolean();
+        if (willUseAbility) {
+            if (isOffensiveAbility())
+                Fight.shootAnimation(abilityProjectile(), 250);
+            useAbility(player);
+        } else {
+            Fight.shootAnimation("•", 250);
+            attack(player);
+        }
+
+        int targetRow = player.row, targetCol = player.col;
+        if (board.hospitalRow >= 0 && hp < (int)(maxHp * 0.50)) {
+            targetRow = board.hospitalRow; targetCol = board.hospitalCol;
+        } else if (board.houseRow >= 0 && hp < (int)(maxHp * 0.25)) {
+            targetRow = board.houseRow; targetCol = board.houseCol;
+        }
+        moveOpponentToward(targetRow, targetCol, player, board);
     }
 }
