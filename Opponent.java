@@ -2,7 +2,7 @@ import java.util.Random;
 
 public class Opponent extends Character {
 
-    int     maxHp;
+    int     maxHp;            // stored to calculate HP percentage for status messages; set by constructor and never changes
     int     abilityCooldown;  // unified cooldown for every special ability
     boolean inBatForm;        // Vampire — set true by useAbility, cleared by tickEndOfTurn
     boolean parryReady;       // Knight  — set true by useAbility, cleared by applyDamage

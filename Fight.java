@@ -94,6 +94,13 @@ public class Fight {
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     /**
+     * When false, shootAnimation() returns immediately (no frames, no Thread.sleep).
+     * Always true in normal play; the TestHarness sets it false so it can run
+     * thousands of battles without waiting on animation delays.
+     */
+    static boolean animationsEnabled = true;
+
+    /**
      * Reads one line from the player, trims surrounding whitespace, and converts
      * it to uppercase. This means "w", "W", and " W " are all treated the same way,
      * so the player doesn't have to worry about capitalization or accidental spaces.
@@ -163,6 +170,7 @@ public class Fight {
      * @param delayMs    milliseconds to pause between frames
      */
     static void shootAnimation(String projectile, int delayMs) {
+        if (!animationsEnabled) return;   // harness mode — skip frames and Thread.sleep
         int steps = 8;    // number of animation frames
         int width = 36;   // total horizontal space the projectile travels across
         try {
@@ -214,6 +222,7 @@ public class Fight {
         System.out.println("    2  Special Ability — every character has one; appears when ready");
         System.out.println("    3  Raise Shield 🛡️  — blocks incoming damage until it breaks");
         System.out.println("    4  Move            — W↑  S↓  A←  D→  (moving doesn't use your turn)");
+        System.out.println("    Q  Quit            — exit the game at any time");
 
         System.out.println("\n" + Character.BOLD + "  SHIELD" + Character.RESET);
         System.out.println("  Your shield goes in the cell to your RIGHT on the board.");
@@ -265,7 +274,8 @@ public class Fight {
     static Opponent[] selectCharacters(Scanner scanner, Random rng) {
         System.out.println(Character.CYAN + Character.BOLD + "╔══════════════════════════════╗");
         System.out.println("║           F I G H T          ║");
-        System.out.println("╚══════════════════════════════╝" + Character.RESET + "\n");
+        System.out.println("╚══════════════════════════════╝" + Character.RESET);
+        System.out.println(Character.DIM + "   Made by Hamstersarus" + Character.RESET + "\n");
         printRoster();
 
         // Input loop — accepts 1–10 to choose a character, or I to view instructions
@@ -446,13 +456,18 @@ public class Fight {
             int moveOpt = nextOpt;
             System.out.println("    " + moveOpt + "  Move   W↑  S↓  A←  D→");
             System.out.println("  " + Character.DIM + "──────────────────────────────────────" + Character.RESET);
+            System.out.println("  " + Character.DIM + "  Q  Quit" + Character.RESET);
 
-            // Read the player's choice, accepting either a number or a WASD shortcut
+            // Read the player's choice, accepting a number, WASD shortcut, or Q to quit
             int playerChoice = 0;
             String rawChoice = "";
             while (playerChoice < 1 || playerChoice > moveOpt) {
                 System.out.print("  Choice: ");
                 rawChoice = readInput(scanner);
+                if (rawChoice.equals("Q")) {
+                    System.out.println("\n  You quit the game. Goodbye!");
+                    System.exit(0);
+                }
                 // WASD typed directly at this prompt counts as the Move option
                 if (rawChoice.equals("W") || rawChoice.equals("A")
                         || rawChoice.equals("S") || rawChoice.equals("D")) {
@@ -606,3 +621,46 @@ public class Fight {
         }  // end try-with-resources (scanner closed automatically)
     }
 }
+
+/* Notes for code that may not make sense:
+* The "?" is a shorthand if/else that returns one of two values based on a condition. For example:
+  int x = (a > b) ? 10 : 20;
+  This means "if a > b, then x = 10; otherwise, x = 20". It's a more concise way to write simple if/else assignments.
+
+  Try-Catch blocks are used to handle exceptions that might occur during input parsing. For example, when we try to 
+  parse an integer from user input, if the input is not a valid number, it will throw a NumberFormatException. By 
+  catching this exception, we can prevent the program from crashing and instead prompt the user to enter valid input.
+
+  StringBuilder is a mutable sequence of characters that is more efficient for building strings through concatenation 
+  in a loop.
+
+  Arrow (->) syntax is used in switch statements in Java 14 and later for more concise case handling. For example:
+    switch (dir) {
+        case "W" -> nr--;   // up (lower row index)
+        case "S" -> nr++;   // down (higher row index)
+        case "A" -> nc--;   // left (lower column index)
+        case "D" -> nc++;   // right (higher column index)
+        default  -> validDir = false;
+    }
+
+    String.repeat(n) is a method that returns a new string consisting of the original string repeated n times. For example:
+    String s = "abc".repeat(3);  // s will be "abcabcabc"
+
+    Thread.sleep(milliseconds) is used to pause the execution of the current thread for a specific number of milliseconds,
+    which is useful for creating animations or delays in the game. In this code, it's used to control the speed of the 
+    projectile animation in the shootAnimation method.
+
+    System.out.flush() is called to ensure that any buffered output is sent to the console immediately. This is important 
+    in the shootAnimation method to make sure that each frame of the animation is displayed in real-time rather than being 
+    buffered and shown all at once at the end.
+
+    ANSI escape code (e.g Character.GREEN) is used to add color to the console output. These codes are interpreted by the
+    terminal to change the text color, background color, or other formatting. For example, Character.GREEN might be defied as
+    public static final String GREEN = "\u001B[32m"; // ANSI code for green text
+
+    Assert is a debugging tool that can be used to check assumptions in the code. For example, you might use:
+    assert playerPower > 0 : "Player power should be positive";
+    This will throw an AssertionError with the message "Player power should be positive" if playerPower is not greater than 0. 
+    Assertions can be enabled or disabled when running the Java program, and are typically used during development to catch bugs 
+    early by verifying that certain conditions hold true.
+ */

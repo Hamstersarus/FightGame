@@ -13,6 +13,81 @@ No dependencies. All classes live in the default package.
 
 ---
 
+## Test Harness — Character vs Character Sweep
+
+### Goal
+A standalone class (`TestHarness.java`, `public static void main`) that runs **every character against every character** automatically, with both sides driven by the existing AI, to confirm nothing crashes, hangs, or produces an invalid state. This is a stress/regression test, **not** a balance tuner — a lopsided matchup (Goblin vs Dragon) is expected and fine; an exception or an infinite loop is a bug.
+
+Run with assertions on so the existing `assert` preconditions also get exercised:
+```bash
+javac *.java
+java -ea TestHarness
+```
+
+### What it tests
+For all **100 ordered matchups** (10 × 10, mirror matches like Goblin-vs-Goblin included; ordered so first-mover asymmetry is also covered), repeated **N = 20 times each** (RNG in ability choice, object spawns, and movement makes a single run unrepresentative):
+
+1. **No exceptions** — every battle is wrapped in `try/catch (Throwable)` so one failure is logged and the sweep continues. Catches both `Exception` and `AssertionError`.
+2. **Always terminates** — a turn cap (`MAX_TURNS = 1000`) prevents a stuck loop from hanging the harness. Hitting the cap is recorded as a **timeout** (flagged for review, not a crash).
+3. **Exactly one winner** — when a battle ends normally, assert that exactly one combatant is dead (`hp <= 0`) and the other is alive. A double-death or no-death termination is flagged.
+4. **No invalid state** — both characters stay within board bounds, no leftover shield/house desync. Most of this is already guarded by `assert` in the core classes; the harness just lets those fire.
+
+### Two passes
+- **Pass A — pure combat:** objects disabled (do not call `board.spawnObjects`). Isolates the combat/ability/shield systems.
+- **Pass B — with objects:** `board.spawnObjects(rng)` called as in the real game, so house/hospital/heart interactions are exercised by the AI.
+
+### Required change to `Fight.java`
+`shootAnimation()` calls `Thread.sleep`, which would make 100×20×2 battles take effectively forever even with output hidden (redirecting `System.out` does **not** stop `sleep`). Add a static toggle:
+```java
+static boolean animationsEnabled = true;   // harness sets false
+static void shootAnimation(String projectile, int delayMs) {
+    if (!animationsEnabled) return;         // skip the whole frame loop + sleep
+    ... existing body ...
+}
+```
+This is the only production-code change; it is inert in normal play (`animationsEnabled` stays `true`).
+
+### Output suppression
+The game prints constantly. The harness:
+1. Saves the real `System.out`.
+2. Redirects `System.out` to a no-op `PrintStream` (a `PrintStream` wrapping an `OutputStream` whose `write` does nothing) for the duration of each battle.
+3. Restores the real `System.out` to print the final report.
+
+### Per-battle loop (harness-owned, faithful to `main`)
+The harness writes its own loop rather than calling `Fight.main` (which needs a `Scanner`). It mirrors `main`'s **round** structure — both characters tick start-of-turn, character `i` acts (the "player" slot, always first), character `j` acts, then both tick end-of-turn:
+```
+create fresh Opponent a = createCharacter(i), b = createCharacter(j)
+place a at (0,0), b at (9,9); (Pass B: board.spawnObjects(rng))
+for round in 1..MAX_TURNS:
+    a.tickStartOfTurn();  if !a.isAlive() -> j wins, break    // DoT can kill before acting
+    b.tickStartOfTurn();  if !b.isAlive() -> i wins, break
+    a.opponentAI(b, rng, board);  if !b.isAlive() -> i wins, break
+    b.opponentAI(a, rng, board);  if !a.isAlive() -> j wins, break
+    a.tickEndOfTurn(); b.tickEndOfTurn()
+    board.ejectFromHouseIfExpired(a); board.ejectFromHouseIfExpired(b)
+else: record TIMEOUT
+```
+Because `a` (character `i`) always acts first, the matrix diagonal (mirror matches) measures first-mover advantage — which is why matchups run **ordered** rather than as 55 unique pairs.
+Notes:
+- Fresh `Opponent` objects per battle (via `createCharacter`) mean **no state leakage** between runs.
+- `opponentAI` already handles every character's ability through `useAbility`, so Ninja's First Strike etc. resolve as normal AI actions — the harness does not replicate `main`'s special Ninja first-strike branch (out of scope for a crash test).
+- Matchmaking is intentionally **bypassed** — the harness forces all pairings, including unfair ones.
+
+### Metrics collected
+Per matchup (i, j): wins for i, wins for j, timeouts, and a list of any `Throwable`s (character pair + message + first few stack frames).
+
+### Final report (printed to the real stdout)
+1. **Failure summary first** — any matchup that threw or timed out, listed loudly at the top. If there are zero, print a clear `ALL MATCHUPS CLEAN` line.
+2. **10 × 10 win-rate matrix** — rows = character i, cols = character j, each cell = i's win % over N runs. Quick visual scan for anything suspicious (e.g. an unexpected 0%/100%, or NaN from divide-by-zero).
+3. **Totals** — battles run, exceptions, timeouts, total wall-clock time.
+
+### Files
+- New: `TestHarness.java` (the harness; not part of the shipped game).
+- Modified: `Fight.java` (add `animationsEnabled` flag — 2 lines).
+- Unchanged: `Character.java`, `Opponent.java`, `Board.java`.
+
+---
+
 ## Visual Style
 
 ### ANSI Colors
