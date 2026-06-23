@@ -4,11 +4,19 @@
 
 A Java turn-based fighting game where monsters, creatures, and chaos agents battle on a 10×10 arena.
 
+## ▶ Play Online
+
+**[https://fightgame.onrender.com/](https://fightgame.onrender.com/)** — play it right in your browser, no install needed.
+
+> Hosted on a free tier, so the first load after a period of inactivity may take ~30–60 seconds to wake up. After that it's instant.
+
 ## Goals and Purpose
 
 The intent of this project is to demonstrate software development in Java with heavy use of a modern LLM tool. I used Anthropic's Claude Sonnet 4.6 with occasional use of Opus 4.7. The development environment I chose is VSCode along with Claude CLI. This project serves as the final project in my APCSA Java programming class. The use of these AI tools is in contrast to everything we've done in the course where prior use of LLMs was prohibited.
 
 ## How to Run
+
+The easiest way is to [play online](https://fightgame.onrender.com/). To run it locally instead:
 
 ```bash
 javac *.java
