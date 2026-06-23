@@ -31,6 +31,7 @@ You always go first. Pick one action:
 - **Special Ability** — your character's unique power; only available when its cooldown is at 0
 - **Raise Shield 🛡️** — place a physical shield to your right; blocks all incoming damage until it breaks
 - **Move** — W↑ S↓ A← D→ — repositioning does **not** use your turn
+- **Quit** — press **Q** at any turn to exit the game
 
 After you act, the opponent takes their turn automatically.
 
@@ -93,12 +94,24 @@ The game runs entirely in the terminal with ANSI color output:
 
 ```
 Fight/
-├── Fight.java       # Entry point, game loop, roster, AI, map objects, animations
-├── Opponent.java    # All combat behavior, special abilities, shield logic, per-turn ticks
-├── Character.java   # Base character data model + ANSI color constants
-├── Board.java       # 10×10 arena grid
+├── Fight.java        # Entry point, game loop, roster, character selection, player input, animations
+├── Opponent.java     # Combat behavior, special abilities, shield logic, per-turn ticks, opponent AI
+├── Character.java    # Base character data model + ANSI color constants
+├── Board.java        # 10×10 arena grid, board rendering, map-object spawning and interaction
+├── TestHarness.java  # Developer tool — runs every character vs every character to check for bugs
 └── README.md
 ```
+
+## Testing
+
+`TestHarness.java` is a standalone developer tool (not part of the game). It pits every character against every other character — all 100 matchups, run many times each, with and without map objects — and reports any crashes, hangs, or invalid states. Both sides are driven by the opponent AI, so no input is needed.
+
+```bash
+javac *.java
+java -ea TestHarness
+```
+
+It prints a win-rate matrix and flags any exceptions or never-ending battles, making it easy to catch bugs after changing combat code.
 
 ## Resources
 
