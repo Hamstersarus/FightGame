@@ -23,7 +23,8 @@ RUN javac -encoding UTF-8 *.java
 # UTF-8 locale so the emoji and box-drawing output render correctly in the browser.
 ENV LANG=C.UTF-8
 
-# ttyd serves on 7681. -W makes the terminal writable so players can type.
+# ttyd serves the terminal. -W makes it writable so players can type.
 # Each browser connection spawns a fresh `java Fight`, so players don't collide.
+# Binds to $PORT when a host provides one (Render, Railway, etc.), else 7681 locally.
 EXPOSE 7681
-CMD ["ttyd", "-W", "-p", "7681", "java", "-Dfile.encoding=UTF-8", "Fight"]
+CMD ttyd -W -p ${PORT:-7681} java -Dfile.encoding=UTF-8 Fight
